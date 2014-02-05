@@ -1,0 +1,18 @@
+{
+    "versionLabel": "1.0",
+    "uuid": "0f7678c3-f1e7-45e3-bbce-94fc10685b55",
+    "appKeys": {},
+    "longName": "Indigo Remote",
+    "versionCode": 1,
+    "capabilities": [
+        ""
+    ],
+    "shortName": "Indigo Remote",
+    "companyName": "Zach Benz",
+    "watchapp": {
+        "watchface": false
+    },
+    "resources": {
+        "media": []
+    }
+}
