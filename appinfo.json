@@ -5,7 +5,7 @@
     "longName": "Indigo Remote",
     "versionCode": 1,
     "capabilities": [
-        ""
+        "configurable"
     ],
     "shortName": "Indigo Remote",
     "companyName": "Zach Benz",
@@ -28,11 +28,6 @@
                 "type": "png",
                 "name": "IMAGE_MENU_ICON_BIG_WATCH",
                 "file": "images/menu_icon_big_watch.png"
-            },
-            {
-                "type": "png",
-                "name": "IMAGE_BACKGROUND_BRAINS",
-                "file": "images/brains_watch_background.png"
             }
         ]
     }
