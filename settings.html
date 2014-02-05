@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Indigo Remote Settings</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="http://code.jquery.com/mobile/1.3.2/jquery.mobile-1.3.2.min.css" />
+    <script src="http://code.jquery.com/jquery-1.9.1.min.js"></script>
+    <script src="http://code.jquery.com/mobile/1.3.2/jquery.mobile-1.3.2.min.js"></script>
+  </head>
+  <body>
+    <div data-role="page" id="main">
+      <div data-role="header" class="jqm-header">
+        <h1>Indigo Remote</h1>
+      </div>
+
+      <div data-role="content">
+
+        <div data-role="fieldcontain">
+          <label for="server-address">Server IP Address:</label>
+          <input type="number" size="15" "name="server-address" id="server-address" required></input>
+        </div>
+        
+        <div data-role="fieldcontain">
+            <label for="authenticate">Authentication:</label>
+            <select name="authenticate" id="authenticate" data-role="slider">
+                <option value="off">Off</option>
+                <option value="on">On</option>
+            </select>
+        </div>
+        
+        <div data-role="fieldcontain">
+            <label for="username">Username:</label>
+            <input type="text" size="40" "name="username" id="username"></input>
+        </div>
+
+        <div data-role="fieldcontain">
+            <label for="password">Password:</label>
+            <input type="password" size="40" "name="password" id="password"></input>
+        </div>
+
+        <div class="ui-body ui-body-b">
+            <fieldset class="ui-grid-a">
+                <div class="ui-block-a"><button type="submit" data-theme="d" id="b-cancel">Cancel</button></div>
+                <div class="ui-block-b"><button type="submit" data-theme="a" id="b-submit">Submit</button></div>
+            </fieldset>
+        </div>
+        </div>
+      </div>
+    </div>
+    <script>
+      function saveOptions() {
+        var options = {
+          'server-address': $("#server-address").val(),
+          'authenticate': $("#authenticate").is(':checked'),
+          'username': $("#username").val(),
+          'password': $("#password").val()
+        }
+        return options;
+      }
+
+      $().ready(function() {
+        $("#b-cancel").click(function() {
+          console.log("Cancel");
+          document.location = "pebblejs://close";
+        });
+
+        $("#b-submit").click(function() {
+          console.log("Submit");
+
+          var location = "pebblejs://close#" + encodeURIComponent(JSON.stringify(saveOptions()));
+          console.log("Warping to: " + location);
+          console.log(location);
+          document.location = location;
+        });
+
+      });
+    </script>
+  </body>
+</html>
