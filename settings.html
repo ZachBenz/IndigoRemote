@@ -18,9 +18,15 @@
 
         <div data-role="fieldcontain">
           <label for="server-address">Server IP Address:</label>
-          <input type="number" size="15" "name="server-address" id="server-address" required></input>
+          <input type="text" size="15" name="server-address" id="server-address" required></input>
         </div>
         
+        <div data-role="fieldcontain">
+          <label for="server-port">Server Port Number:</label>
+          <input type="text" size="15" name="server-port" id="server-port" required></input>
+        </div>
+      
+<!-- We don't currently support authentication to Indigo server
         <div data-role="fieldcontain">
             <label for="authenticate">Authentication:</label>
             <select name="authenticate" id="authenticate" data-role="slider">
@@ -31,13 +37,14 @@
         
         <div data-role="fieldcontain">
             <label for="username">Username:</label>
-            <input type="text" size="40" "name="username" id="username"></input>
+            <input type="text" size="40" name="username" id="username"></input>
         </div>
 
         <div data-role="fieldcontain">
             <label for="password">Password:</label>
-            <input type="password" size="40" "name="password" id="password"></input>
+            <input type="password" size="40" name="password" id="password"></input>
         </div>
+-->
 
         <div class="ui-body ui-body-b">
             <fieldset class="ui-grid-a">
@@ -49,17 +56,40 @@
       </div>
     </div>
     <script>
+        function getUrlVars() {
+            var vars = [], tuple;
+            var tuples = window.location.href.slice(window.location.href.indexOf('?') + 1).split('&');
+            
+            for(var i = 0; i < tuples.length; i++)
+            {
+                tuple = tuples[i].split('=');
+                vars.push(tuple[0]);
+                vars[tuple[0]] = tuple[1];
+            }
+            
+            return vars;
+        }
+    
       function saveOptions() {
         var options = {
-          'server-address': $("#server-address").val(),
-          'authenticate': $("#authenticate").is(':checked'),
-          'username': $("#username").val(),
-          'password': $("#password").val()
+          'serverAddress': $("#server-address").val(),
+          'serverPort': $("#server-port").val()
+//          'authenticate': $("#authenticate").is(':checked'),
+//          'username': $("#username").val(),
+//          'password': $("#password").val()
         }
         return options;
       }
 
-      $().ready(function() {
+      $(document).ready(function() {
+        var urlVars = getUrlVars();
+        if (urlVars["serverAddress"]) {
+            document.getElementById("server-address").value = urlVars["serverAddress"];
+        }
+        if (urlVars["serverPort"]) {
+            document.getElementById("server-port").value = urlVars["serverPort"];
+        }
+                        
         $("#b-cancel").click(function() {
           console.log("Cancel");
           document.location = "pebblejs://close";
