@@ -67,16 +67,6 @@ Pebble.addEventListener("webviewclosed", function(e) {
 //    return output;
 //}
 
-// Basic sleep function based on ms.
-// BUSY WAITS!!!
-// We need this because otherwise we overwhelm Pebble with AppMessages and
-// it drops them all.  Using setTimeout just makes everything async and out
-// of order, without really solving the problem.
-function busyWaitSleep(ms) {
-    var unixtime_ms = new Date().getTime();
-    while(new Date().getTime() < unixtime_ms + ms) {}
-}
-
 function sendDeviceCount(deviceCount) {
     Pebble.sendAppMessage({"device_count": deviceCount},
         function(e){
@@ -85,8 +75,6 @@ function sendDeviceCount(deviceCount) {
         function(e){
             console.log("Unable to send device_count message. transactionId=" + e.data.transactionId);
             setTimeout(sendDeviceCount(deviceCount), 400);
-//            busyWaitSleep(400);
-//            sendDeviceCount(deviceCount)
         }
     );
 }
@@ -103,8 +91,6 @@ function sendDeviceInfo(deviceNumber, deviceInfo) {
         function(e){
             console.log("Unable to send device message. device=" + deviceInfo.name + " transactionId=" + e.data.transactionId);
             setTimeout(sendDeviceInfo(deviceNumber, deviceInfo), 400);
-//            busyWaitSleep(400);
-//            sendDeviceInfo(deviceNumber, deviceInfo);
         }
     );
 }
@@ -155,13 +141,10 @@ function getDevices() {
                 
                 // We've got the total count of controllable devices, so send it out
                 sendDeviceCount(deviceCount);
-//                busyWaitSleep(timeout);
                 
                 // Now send out the information for each device
                 for (var i = 0, j = devices.length; i < j; i += 1) {
                     setTimeout(sendDeviceInfo(i, devices[i], timeout));
-//                    sendDeviceInfo(i, devices[i]);
-//                    busyWaitSleep(timeout);
                 }
             }
             else {
