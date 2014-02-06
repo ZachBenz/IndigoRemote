@@ -19,7 +19,12 @@
         "device_name": 5,
         "device_on": 6,
         "device_toggle_on_off": 7,
-        "get_actions": 8
+        "get_actions": 8,
+        "action_count": 9,
+        "action": 10,
+        "action_number": 11,
+        "action_name": 12,
+        "action_execute": 13
     },
     "resources": {
         "media": [

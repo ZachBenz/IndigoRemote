@@ -5,16 +5,19 @@
 #define TOP_MENU_NUM_ICONS 2
 
 #define DEVICES_MENU_NUM_SECTIONS 1
-#define DEVICES_MENU_NUM_ICONS 2
-
 #define MAX_NUMBER_OF_DEVICES 50
 #define MAX_DEVICE_NAME_LENGTH 16
 
+#define ACTIONS_MENU_NUM_SECTIONS 1
 #define MAX_NUMBER_OF_ACTIONS 50
 #define MAX_ACTION_NAME_LENGTH 16
 
-#define STATUS_GETTING_STATE 100
-#define STATUS_TOGGLING 200
+#define STATUS_OFF 0
+#define STATUS_ON 1
+#define STATUS_NONE 10
+#define STATUS_GETTING_STATE 20
+#define STATUS_TOGGLING 30
+#define STATUS_EXECUTING 40
 
 #define TEMP_STRING_LENGTH 15
 
@@ -24,14 +27,18 @@ static TextLayer *loading_text_layer;
 static Window *top_window;
 static MenuLayer *top_menu_layer;
 static GBitmap *top_menu_icons[TOP_MENU_NUM_ICONS];
-static int current_icon = 0;
 
 static Window *devices_window;
 static MenuLayer *devices_menu_layer;
-static GBitmap *devices_menu_icons[DEVICES_MENU_NUM_ICONS];
 static uint8_t deviceCount = 0;
+bool gotDeviceCount = false;
 
-// Handy for using snprintf to display deviceCount
+static Window *actions_window;
+static MenuLayer *actions_menu_layer;
+static uint8_t actionCount = 0;
+bool gotActionCount = false;
+
+// Handy for using snprintf to display integers
 static char tempStr[TEMP_STRING_LENGTH];
 
 enum {
@@ -42,7 +49,12 @@ enum {
     INDIGO_REMOTE_KEY_DEVICE_NAME = 0x5,
     INDIGO_REMOTE_KEY_DEVICE_ON = 0x6,
     INDIGO_REMOTE_KEY_DEVICE_TOGGLE_ON_OFF = 0x7,
-    INDIGO_REMOTE_KEY_GET_ACTIONS = 0x8
+    INDIGO_REMOTE_KEY_GET_ACTIONS = 0x8,
+    INDIGO_REMOTE_KEY_ACTION_COUNT = 0x9,
+    INDIGO_REMOTE_KEY_ACTION = 0x10,
+    INDIGO_REMOTE_KEY_ACTION_NUMBER = 0x11,
+    INDIGO_REMOTE_KEY_ACTION_NAME = 0x12,
+    INDIGO_REMOTE_KEY_ACTION_EXECUTE = 0x13
 };
 
 typedef struct {
@@ -54,6 +66,7 @@ static DeviceData device_data_list[MAX_NUMBER_OF_DEVICES];
 
 typedef struct {
     char name[MAX_ACTION_NAME_LENGTH];
+    uint8_t status;
 } ActionData;
 
 static ActionData action_data_list[MAX_NUMBER_OF_ACTIONS];
@@ -63,10 +76,11 @@ static ActionData action_data_list[MAX_NUMBER_OF_ACTIONS];
 
 static void in_received_handler(DictionaryIterator *iter, void *context) {
     Tuple *device_count_tuple = dict_find(iter, INDIGO_REMOTE_KEY_DEVICE_COUNT);
-        Tuple *device_tuple = dict_find(iter, INDIGO_REMOTE_KEY_DEVICE);
+    Tuple *device_tuple = dict_find(iter, INDIGO_REMOTE_KEY_DEVICE);
+    Tuple *action_count_tuple = dict_find(iter, INDIGO_REMOTE_KEY_ACTION_COUNT);
+    Tuple *action_tuple = dict_find(iter, INDIGO_REMOTE_KEY_ACTION);
     
     if (device_count_tuple) {
-        // Got device count, dismiss loading screen
         if (device_count_tuple->value->uint8 <= MAX_NUMBER_OF_DEVICES) {
             deviceCount = device_count_tuple->value->uint8;
         }
@@ -79,9 +93,13 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
             strncpy(device_data_list[i].name, tempStr, MAX_DEVICE_NAME_LENGTH);
             device_data_list[i].on = STATUS_GETTING_STATE;
         }
-        
-        window_stack_pop(false);
-        window_stack_push(top_window, true /* Animated */);
+
+        // Getting device & action count is signal to dismiss loading screen
+        if (gotActionCount) {
+            window_stack_pop(false);
+            window_stack_push(top_window, true /* Animated */);
+        }
+        gotDeviceCount = true;
     }
     
     if (device_tuple) {
@@ -105,6 +123,48 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
             layer_mark_dirty(menu_layer_get_layer(devices_menu_layer));
         }
     }
+    
+    if (action_count_tuple) {
+        // Got action count
+        if (action_count_tuple->value->uint8 <= MAX_NUMBER_OF_ACTIONS) {
+            actionCount = action_count_tuple->value->uint8;
+        }
+        else {
+            actionCount = MAX_NUMBER_OF_ACTIONS;
+        }
+        
+        for (int i = 0; i < actionCount; i++) {
+            snprintf(tempStr, TEMP_STRING_LENGTH, "Action %d", i);
+            strncpy(action_data_list[i].name, tempStr, MAX_ACTION_NAME_LENGTH);
+            action_data_list[i].status = STATUS_NONE;
+        }
+        
+        // Getting device & action count is signal to dismiss loading screen
+        if (gotDeviceCount) {
+            window_stack_pop(false);
+            window_stack_push(top_window, true /* Animated */);
+        }
+        gotActionCount = true;
+    }
+    
+    if (action_tuple) {
+        // Add the action info to our list
+        Tuple *actionNumber = dict_find(iter, INDIGO_REMOTE_KEY_ACTION_NUMBER);
+        Tuple *name = dict_find(iter, INDIGO_REMOTE_KEY_ACTION_NAME);
+        
+        if (actionNumber) {
+            if (actionNumber->value->uint8 < MAX_NUMBER_OF_ACTIONS) {
+                if (name) {
+                    strncpy(action_data_list[actionNumber->value->uint8].name, name->value->cstring, MAX_ACTION_NAME_LENGTH);
+                }
+                action_data_list[actionNumber->value->uint8].status = STATUS_NONE;
+            }
+        }
+        
+        if (window_stack_get_top_window() == actions_window) {
+            layer_mark_dirty(menu_layer_get_layer(actions_menu_layer));
+        }
+    }
 }
 
 static void in_dropped_handler(AppMessageResult reason, void *context) {
@@ -123,7 +183,6 @@ static void app_message_init(void) {
     // Init buffers
     app_message_open(app_message_inbox_size_maximum(), app_message_outbox_size_maximum());
 }
-
 
 // Request information about the devices known to the Indigo Server
 static void devices_msg(void) {
@@ -174,6 +233,24 @@ static void actions_msg(void) {
     }
     
     dict_write_tuplet(iter, &get_actions_tuple);
+    dict_write_end(iter);
+    
+    app_message_outbox_send();
+}
+
+// Request to execute the specified action
+static void execute_msg(uint8_t actionNumber) {
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "Attempting to execute an action");
+    Tuplet action_execute_tuple = TupletInteger(INDIGO_REMOTE_KEY_ACTION_EXECUTE, actionNumber);
+    
+    DictionaryIterator *iter;
+    app_message_outbox_begin(&iter);
+    
+    if (iter == NULL) {
+        return;
+    }
+    
+    dict_write_tuplet(iter, &action_execute_tuple);
     dict_write_end(iter);
     
     app_message_outbox_send();
@@ -236,10 +313,8 @@ static void menu_select_callback(MenuLayer *menu_layer, MenuIndex *cell_index, v
                 window_stack_push(devices_window, true /* Animated */);
                 break;
             case 1:
-                // Cycle the icon
-                current_icon = (current_icon + 1) % TOP_MENU_NUM_ICONS;
-                // After changing the icon, mark the layer to have it updated
-                layer_mark_dirty(menu_layer_get_layer(top_menu_layer));
+                // Go to the actions window
+                window_stack_push(actions_window, true /* Animated */);
                 break;
         }
     }
@@ -247,6 +322,11 @@ static void menu_select_callback(MenuLayer *menu_layer, MenuIndex *cell_index, v
         toggle_msg(cell_index->row);
         device_data_list[cell_index->row].on = STATUS_TOGGLING;
         layer_mark_dirty(menu_layer_get_layer(devices_menu_layer));
+    }
+    else if (menu_layer == actions_menu_layer) {
+        execute_msg(cell_index->row);
+        action_data_list[cell_index->row].status = STATUS_EXECUTING;
+        layer_mark_dirty(menu_layer_get_layer(actions_menu_layer));
     }
 }
 
@@ -264,12 +344,12 @@ static void top_menu_draw_row_callback(GContext* ctx, const Layer *cell_layer, M
             switch (cell_index->row) {
                 case 0:
                     // This is a basic menu item with a title and subtitle
-                    menu_cell_basic_draw(ctx, cell_layer, "Devices", "Control devices", top_menu_icons[current_icon]);
+                    menu_cell_basic_draw(ctx, cell_layer, "Devices", "Control devices", top_menu_icons[0]);
                     break;
                     
                 case 1:
                     // This is a basic menu item with a title and subtitle
-                    menu_cell_basic_draw(ctx, cell_layer, "Actions", "Execute actions", top_menu_icons[(current_icon + 1) % TOP_MENU_NUM_ICONS]);
+                    menu_cell_basic_draw(ctx, cell_layer, "Actions", "Execute actions", top_menu_icons[1]);
                     break;
             }
             break;
@@ -298,6 +378,31 @@ static void devices_menu_draw_row_callback(GContext* ctx, const Layer *cell_laye
                     (device_data_list[cell_index->row].on == STATUS_GETTING_STATE)? "Getting current state...":
                     (device_data_list[cell_index->row].on == STATUS_TOGGLING)? "Toggling...":
                     (device_data_list[cell_index->row].on)? "On" : "Off", NULL);
+            }
+            break;
+    }
+}
+
+// Here we draw what each header is
+static void actions_menu_draw_header_callback(GContext* ctx, const Layer *cell_layer, uint16_t section_index, void *data) {
+    // Determine which section we're working with
+    switch (section_index) {
+        case 0:
+            // Draw title text in the section header
+            snprintf(tempStr, TEMP_STRING_LENGTH, "%d Actions", actionCount);
+            menu_cell_basic_header_draw(ctx, cell_layer, tempStr);
+            break;
+    }
+}
+
+// This is the menu item draw callback where you specify what each item should look like
+static void actions_menu_draw_row_callback(GContext* ctx, const Layer *cell_layer, MenuIndex *cell_index, void *data) {
+    // Determine which section we're going to draw in
+    switch (cell_index->section) {
+        case 0:
+            if (cell_index->row < deviceCount) {
+                menu_cell_basic_draw(ctx, cell_layer, action_data_list[cell_index->row].name,
+                                     (action_data_list[cell_index->row].status == STATUS_EXECUTING)? "Executing...":"", NULL);
             }
             break;
     }
@@ -388,12 +493,6 @@ static void top_window_unload(Window *window) {
 
 // This initializes the menu upon window load
 static void devices_window_load(Window *window) {
-    // Here we load the bitmap assets
-    // resource_init_current_app must be called before all asset loading
-    int num_menu_icons = 0;
-    devices_menu_icons[num_menu_icons++] = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_MENU_ICON_BIG_WATCH);
-    devices_menu_icons[num_menu_icons++] = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_MENU_ICON_SECTOR_WATCH);
-    
     // Now we prepare to initialize the menu layer
     // We need the bounds to specify the menu layer's viewport size
     // In this case, it'll be the same as the window's
@@ -425,17 +524,48 @@ static void devices_window_load(Window *window) {
 static void devices_window_unload(Window *window) {
     // Destroy the menu layer
     menu_layer_destroy(devices_menu_layer);
+}
+
+// This initializes the menu upon window load
+static void actions_window_load(Window *window) {
+    // Now we prepare to initialize the menu layer
+    // We need the bounds to specify the menu layer's viewport size
+    // In this case, it'll be the same as the window's
+    Layer *window_layer = window_get_root_layer(window);
+    GRect bounds = layer_get_frame(window_layer);
     
-    // Cleanup the menu icons
-    for (int i = 0; i < DEVICES_MENU_NUM_ICONS; i++) {
-        gbitmap_destroy(devices_menu_icons[i]);
-    }
+    // Create the menu layer
+    actions_menu_layer = menu_layer_create(bounds);
+    
+    // Set all the callbacks for the menu layer
+    menu_layer_set_callbacks(devices_menu_layer, NULL, (MenuLayerCallbacks){
+        .get_num_sections = menu_get_num_sections_callback,
+        .get_num_rows = menu_get_num_rows_callback,
+        .get_header_height = menu_get_header_height_callback,
+        .draw_header = actions_menu_draw_header_callback,
+        .draw_row = actions_menu_draw_row_callback,
+        .select_click = menu_select_callback,
+    });
+    
+    // Bind the menu layer's click config provider to the window for interactivity
+    menu_layer_set_click_config_onto_window(actions_menu_layer, window);
+    
+    // Add it to the window for display
+    layer_add_child(window_layer, menu_layer_get_layer(actions_menu_layer));
+    
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "Created Actions Window");
+}
+
+static void actions_window_unload(Window *window) {
+    // Destroy the menu layer
+    menu_layer_destroy(actions_menu_layer);
 }
 
 int main(void) {
     loading_window = window_create();
     top_window = window_create();
     devices_window = window_create();
+    actions_window = window_create();
     app_message_init();
     
     // Setup the window handlers
@@ -451,11 +581,16 @@ int main(void) {
         .load = devices_window_load,
         .unload = devices_window_unload,
     });
+    window_set_window_handlers(actions_window, (WindowHandlers) {
+        .load = actions_window_load,
+        .unload = actions_window_unload,
+    });
 
     window_stack_push(loading_window, true /* Animated */);
     
     app_event_loop();
 
+    window_destroy(actions_window);
     window_destroy(devices_window);
     window_destroy(top_window);
     window_destroy(loading_window);
