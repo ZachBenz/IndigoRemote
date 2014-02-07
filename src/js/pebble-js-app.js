@@ -1,5 +1,7 @@
 var MAX_DEVICE_NAME_LENGTH = 16;
 var MAX_ACTION_NAME_LENGTH = 16;
+var DEFAULT_TIMEOUT = 400;
+var TIMEOUT_SPACING = 200;
 
 var deviceCount = localStorage.getItem("deviceCount");
 if (!deviceCount) {
@@ -63,7 +65,7 @@ function sendDeviceCount(deviceCount) {
         },
         function(e){
             console.log("Unable to send device_count message. transactionId=" + e.data.transactionId);
-            setTimeout(sendDeviceCount(deviceCount), 400);
+            setTimeout(sendDeviceCount(deviceCount), DEFAULT_TIMEOUT);
         }
     );
 }
@@ -75,11 +77,11 @@ function sendDeviceInfo(deviceNumber, deviceInfo) {
                           "device_on": deviceInfo.device_on
                           },
         function(e){
-            console.log("Sent device message. device=" + deviceInfo.name + " transactionId=" + e.data.transactionId);
+            console.log("Sent device message. device=" + deviceInfo.device_name + " transactionId=" + e.data.transactionId);
         },
         function(e){
-            console.log("Unable to send device message. device=" + deviceInfo.name + " transactionId=" + e.data.transactionId);
-            setTimeout(sendDeviceInfo(deviceNumber, deviceInfo), 400);
+            console.log("Unable to send device message. device=" + deviceInfo.device_name + " transactionId=" + e.data.transactionId);
+            setTimeout(sendDeviceInfo(deviceNumber, deviceInfo), DEFAULT_TIMEOUT);
         }
     );
 }
@@ -95,7 +97,6 @@ function getDevices() {
     req.onload = function(e) {
         if(req.status == 200) {
             var response = JSON.parse(req.responseText);
-            var price;
             if (response.length > 0) {
                 // Pare down to just devices that have typeSupportsOnOff: true
                 deviceCount = 0
@@ -103,7 +104,7 @@ function getDevices() {
                 
                 for (var i = 0, j = response.length; i < j; i += 1) {
                     var deviceRequest = new XMLHttpRequest();
-                    deviceRequest.open('GET', prefixForGet + "/devices/" + response[i].nameURLEncoded + ".json", false);  // `false` makes the request synchronous
+                    deviceRequest.open('GET', prefixForGet + response[i].restURL, false);  // `false` makes the request synchronous
                     deviceRequest.send(null);
                     if( deviceRequest.status == 200) {
                         // Track device information
@@ -112,14 +113,14 @@ function getDevices() {
                             devices[deviceCount] =
                             {
                                 "device_name": deviceInfo.name.substring(0, MAX_DEVICE_NAME_LENGTH),
-                                "device_url_name": response[i].nameURLEncoded,
+                                "device_rest_url": response[i].restURL,
                                 "device_on": deviceInfo.isOn
                             };
                             deviceCount++;
                         }
                     }
                     else {
-                        console.log("Request for device " + response[i].nameURLEncoded + " returned error code " + deviceRequest.status.toString());
+                        console.log("Request for device " + response[i].restURL + " returned error code " + deviceRequest.status.toString());
                     }
                 }
                 localStorage.setItem("deviceCount", deviceCount);
@@ -129,13 +130,13 @@ function getDevices() {
                 sendDeviceCount(deviceCount);
                 
                 // Need to pace ourselves so we don't overwhelm Pebble
-                var timeout = 400;
+                var timeout = DEFAULT_TIMEOUT;
                 
                 // Now send out the information for each device
                 for (var i = 0, j = devices.length; i < j; i += 1) {
-                    setTimeout(sendDeviceInfo(i, devices[i], timeout));
+                    setTimeout(sendDeviceInfo(i, devices[i]), timeout);
                     // Space out the messages in time
-                    timeout += 200;
+                    timeout += TIMEOUT_SPACING;
                 }
             }
             else {
@@ -152,7 +153,7 @@ function getDevices() {
 function toggleDeviceOnOff(deviceNumber) {
     var req = new XMLHttpRequest();
     // TODO: Support Digest Authentication
-    req.open('GET', prefixForGet + "/devices/" + devices[deviceNumber].device_url_name + ".json?toggle=1&_method=put", true);  // `true` makes the request asynchronous
+    req.open('GET', prefixForGet + devices[deviceNumber].device_rest_url + "?toggle=1&_method=put", true);  // `true` makes the request asynchronous
     req.onload = function(e) {
         if (req.readyState == 4) {
             // 200 - HTTP OK
@@ -162,6 +163,7 @@ function toggleDeviceOnOff(deviceNumber) {
                 sendDeviceInfo(deviceNumber, devices[deviceNumber]);
                 localStorage.setItem("devices", JSON.stringify(devices));
             } else {
+// TODO - inform pebble that toggle failed
                 console.log("Request returned error code " + req.status.toString());
             }
         }
@@ -176,33 +178,30 @@ function sendActionCount(actionCount) {
         },
         function(e){
             console.log("Unable to send action_count message. transactionId=" + e.data.transactionId);
-            setTimeout(sendActionCount(actionCount), 400);
+            setTimeout(sendActionCount(actionCount), DEFAULT_TIMEOUT);
         }
     );
 }
 
-/**** HERE!!!!!!!!!!!! ****/
-
 function sendActionInfo(actionNumber, actionInfo) {
-    Pebble.sendAppMessage({"device": 1,
-                          "device_number": deviceNumber,
-                          "device_name": deviceInfo.device_name,
-                          "device_on": deviceInfo.device_on
+    Pebble.sendAppMessage({"action": 1,
+                          "action_number": actionNumber,
+                          "action_name": actionInfo.action_name
                           },
-                          function(e){
-                          console.log("Sent device message. device=" + deviceInfo.name + " transactionId=" + e.data.transactionId);
-                          },
-                          function(e){
-                          console.log("Unable to send device message. device=" + deviceInfo.name + " transactionId=" + e.data.transactionId);
-                          setTimeout(sendDeviceInfo(deviceNumber, deviceInfo), 400);
-                          }
-                          );
+        function(e){
+            console.log("Sent action message. action=" + actionInfo.action_name + " transactionId=" + e.data.transactionId);
+        },
+        function(e){
+            console.log("Unable to send action message. action=" + actionInfo.action_name + " transactionId=" + e.data.transactionId);
+            setTimeout(sendActionInfo(actionNumber, actionInfo), DEFAULT_TIMEOUT);
+        }
+    );
 }
 
-function getDevices() {
+function getActions() {
     var req = new XMLHttpRequest();
-    // Get the list of all devices known to the Indigo Server
-    req.open('GET', prefixForGet + "/devices.json", true);  // `true` makes the request asynchronous
+    // Get the list of all actions known to the Indigo Server
+    req.open('GET', prefixForGet + "/actions.json", true);  // `true` makes the request asynchronous
     // Indigo uses Digest authentication, so this won't work:
     //    req.setRequestHeader("Authorization", "Basic " + btoa(username + ":" + password))
     // Instead, see http://stackoverflow.com/questions/10937890/javascript-digest-manually-authentication?rq=1
@@ -210,73 +209,60 @@ function getDevices() {
     req.onload = function(e) {
         if(req.status == 200) {
             var response = JSON.parse(req.responseText);
-            var price;
             if (response.length > 0) {
-                // Pare down to just devices that have typeSupportsOnOff: true
-                deviceCount = 0
-                devices = new Array();
+                actionCount = 0;
+                actions = new Array();
                 
                 for (var i = 0, j = response.length; i < j; i += 1) {
-                    var deviceRequest = new XMLHttpRequest();
-                    deviceRequest.open('GET', prefixForGet + "/devices/" + response[i].nameURLEncoded + ".json", false);  // `false` makes the request synchronous
-                    deviceRequest.send(null);
-                    if( deviceRequest.status == 200) {
-                        // Track device information
-                        var deviceInfo = JSON.parse(deviceRequest.responseText);
-                        if (deviceInfo.typeSupportsOnOff) {
-                            devices[deviceCount] =
-                            {
-                                "device_name": deviceInfo.name.substring(0, MAX_DEVICE_NAME_LENGTH),
-                                "device_url_name": response[i].nameURLEncoded,
-                                "device_on": deviceInfo.isOn
-                            };
-                            deviceCount++;
-                        }
-                    }
-                    else {
-                        console.log("Request for device " + response[i].nameURLEncoded + " returned error code " + deviceRequest.status.toString());
-                    }
+                    // Track action information
+                    actions[actionCount] =
+                    {
+                        "action_name": response[i].name.substring(0, MAX_ACTION_NAME_LENGTH),
+                        "action_rest_url": response[i].restURL
+                    };
+                    actionCount++;
                 }
-                localStorage.setItem("deviceCount", deviceCount);
-                localStorage.setItem("devices", JSON.stringify(devices));
+                localStorage.setItem("actionCount", actionCount);
+                localStorage.setItem("actions", JSON.stringify(actions));
                 
-                // We've got the total count of controllable devices, so send it out
-                sendDeviceCount(deviceCount);
+                // We've got the total count of actions, so send it out
+                sendActionCount(actionCount);
                 
                 // Need to pace ourselves so we don't overwhelm Pebble
-                var timeout = 400;
+                var timeout = DEFAULT_TIMEOUT;
                 
-                // Now send out the information for each device
-                for (var i = 0, j = devices.length; i < j; i += 1) {
-                    setTimeout(sendDeviceInfo(i, devices[i], timeout));
+                // Now send out the information for each action
+                for (var i = 0, j = actions.length; i < j; i += 1) {
+                    setTimeout(sendActionInfo(i, actions[i]), timeout);
                     // Space out the messages in time
-                    timeout += 200;
+                    timeout += TIMEOUT_SPACING;
                 }
             }
             else {
-                sendDeviceCount(0);
+                sendActionCount(0);
             }
         } else {
             console.log("Request returned error code " + req.status.toString());
-            sendDeviceCount(0);
+            sendActionCount(0);
         }
     }
     req.send(null);
 }
 
-function toggleDeviceOnOff(deviceNumber) {
+function executeAction(actionNumber) {
     var req = new XMLHttpRequest();
     // TODO: Support Digest Authentication
-    req.open('GET', prefixForGet + "/devices/" + devices[deviceNumber].device_url_name + ".json?toggle=1&_method=put", true);  // `true` makes the request asynchronous
+    req.open('GET', prefixForGet + actions[actionNumber].action_rest_url + "?_method=execute", true);  // `true` makes the request asynchronous
     req.onload = function(e) {
         if (req.readyState == 4) {
             // 200 - HTTP OK
-            if(req.status == 200) {
-                var deviceInfo = JSON.parse(req.responseText);
-                devices[deviceNumber].device_on = deviceInfo.isOn;
-                sendDeviceInfo(deviceNumber, devices[deviceNumber]);
-                localStorage.setItem("devices", JSON.stringify(devices));
+            if (req.status == 200) {
+// TODO - inform pebble that action was succesful
+//                var actionInfo = JSON.parse(req.responseText);
+//                sendActionInfo(actionNumber, actions[actionNumber]);
+//                localStorage.setItem("actions", JSON.stringify(actions));
             } else {
+// TODO - inform pebble that action failed
                 console.log("Request returned error code " + req.status.toString());
             }
         }
@@ -286,17 +272,15 @@ function toggleDeviceOnOff(deviceNumber) {
 
 // Set callback for appmessage events
 Pebble.addEventListener("appmessage", function(e) {
-    if (e.payload.get_devices) {
-        console.log("get_devices flag in payload");
-        getDevices();
+    console.log("appmessage received!!!!");
+    if (e.payload.get_devices_and_actions) {
+        console.log("get_devices_and_actions flag in payload");
+//        getDevices();
+        getActions();
     }
     if (e.payload.device_toggle_on_off) {
         console.log("device_toggle_on_off flag in payload");
         toggleDeviceOnOff(e.payload.device_toggle_on_off);
-    }
-    if (e.payload.get_actions) {
-        console.log("get_actions flag in payload");
-        getActions();
     }
     if (e.payload.action_execute) {
         console.log("action_execute flag in payload");

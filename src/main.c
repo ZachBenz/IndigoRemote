@@ -42,19 +42,18 @@ bool gotActionCount = false;
 static char tempStr[TEMP_STRING_LENGTH];
 
 enum {
-    INDIGO_REMOTE_KEY_GET_DEVICES = 0x1,
+    INDIGO_REMOTE_KEY_GET_DEVICES_AND_ACTIONS = 0x1,
     INDIGO_REMOTE_KEY_DEVICE_COUNT = 0x2,
     INDIGO_REMOTE_KEY_DEVICE = 0x3,
     INDIGO_REMOTE_KEY_DEVICE_NUMBER = 0x4,
     INDIGO_REMOTE_KEY_DEVICE_NAME = 0x5,
     INDIGO_REMOTE_KEY_DEVICE_ON = 0x6,
     INDIGO_REMOTE_KEY_DEVICE_TOGGLE_ON_OFF = 0x7,
-    INDIGO_REMOTE_KEY_GET_ACTIONS = 0x8,
-    INDIGO_REMOTE_KEY_ACTION_COUNT = 0x9,
-    INDIGO_REMOTE_KEY_ACTION = 0x10,
-    INDIGO_REMOTE_KEY_ACTION_NUMBER = 0x11,
-    INDIGO_REMOTE_KEY_ACTION_NAME = 0x12,
-    INDIGO_REMOTE_KEY_ACTION_EXECUTE = 0x13
+    INDIGO_REMOTE_KEY_ACTION_COUNT = 0x8,
+    INDIGO_REMOTE_KEY_ACTION = 0x9,
+    INDIGO_REMOTE_KEY_ACTION_NUMBER = 0x10,
+    INDIGO_REMOTE_KEY_ACTION_NAME = 0x11,
+    INDIGO_REMOTE_KEY_ACTION_EXECUTE = 0x12
 };
 
 typedef struct {
@@ -184,10 +183,9 @@ static void app_message_init(void) {
     app_message_open(app_message_inbox_size_maximum(), app_message_outbox_size_maximum());
 }
 
-// Request information about the devices known to the Indigo Server
-static void devices_msg(void) {
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "Attempting to get information about devices");
-    Tuplet get_devices_tuple = TupletInteger(INDIGO_REMOTE_KEY_GET_DEVICES, 1);
+// Request information about the devices and actions known to the Indigo Server
+static void devices_and_actions_msg(void) {
+    Tuplet get_devices_and_actions_tuple = TupletInteger(INDIGO_REMOTE_KEY_GET_DEVICES_AND_ACTIONS, 1);
     
     DictionaryIterator *iter;
     app_message_outbox_begin(&iter);
@@ -196,7 +194,7 @@ static void devices_msg(void) {
         return;
     }
     
-    dict_write_tuplet(iter, &get_devices_tuple);
+    dict_write_tuplet(iter, &get_devices_and_actions_tuple);
     dict_write_end(iter);
     
     app_message_outbox_send();
@@ -204,7 +202,6 @@ static void devices_msg(void) {
 
 // Request to toggle on/off the specified device
 static void toggle_msg(uint8_t deviceNumber) {
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "Attempting to toggle on/off a device");
     Tuplet device_toggle_on_off_tuple = TupletInteger(INDIGO_REMOTE_KEY_DEVICE_TOGGLE_ON_OFF, deviceNumber);
     
     DictionaryIterator *iter;
@@ -220,27 +217,8 @@ static void toggle_msg(uint8_t deviceNumber) {
     app_message_outbox_send();
 }
 
-// Request information about the actions known to the Indigo Server
-static void actions_msg(void) {
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "Attempting to get information about actions");
-    Tuplet get_actions_tuple = TupletInteger(INDIGO_REMOTE_KEY_GET_ACTIONS, 1);
-    
-    DictionaryIterator *iter;
-    app_message_outbox_begin(&iter);
-    
-    if (iter == NULL) {
-        return;
-    }
-    
-    dict_write_tuplet(iter, &get_actions_tuple);
-    dict_write_end(iter);
-    
-    app_message_outbox_send();
-}
-
 // Request to execute the specified action
 static void execute_msg(uint8_t actionNumber) {
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "Attempting to execute an action");
     Tuplet action_execute_tuple = TupletInteger(INDIGO_REMOTE_KEY_ACTION_EXECUTE, actionNumber);
     
     DictionaryIterator *iter;
@@ -261,78 +239,126 @@ static void execute_msg(uint8_t actionNumber) {
 
 // A callback is used to specify the amount of sections of menu items
 // With this, you can dynamically add and remove sections
-static uint16_t menu_get_num_sections_callback(MenuLayer *menu_layer, void *data) {
-    if (menu_layer == top_menu_layer) {
-        return TOP_MENU_NUM_SECTIONS;
-    }
-    else if (menu_layer == devices_menu_layer) {
-        return DEVICES_MENU_NUM_SECTIONS;
-    }
-    else {
-        return 0;
+static uint16_t top_menu_get_num_sections_callback(MenuLayer *menu_layer, void *data) {
+    return TOP_MENU_NUM_SECTIONS;
+}
+
+// A callback is used to specify the amount of sections of menu items
+// With this, you can dynamically add and remove sections
+static uint16_t devices_menu_get_num_sections_callback(MenuLayer *menu_layer, void *data) {
+    return DEVICES_MENU_NUM_SECTIONS;
+}
+
+// A callback is used to specify the amount of sections of menu items
+// With this, you can dynamically add and remove sections
+static uint16_t actions_menu_get_num_sections_callback(MenuLayer *menu_layer, void *data) {
+    return ACTIONS_MENU_NUM_SECTIONS;
+}
+
+// Each section has a number of items;  we use a callback to specify this
+// You can also dynamically add and remove items using this
+static uint16_t top_menu_get_num_rows_callback(MenuLayer *menu_layer, uint16_t section_index, void *data) {
+    switch (section_index) {
+        case 0:
+          return TOP_MENU_FIRST_SECTION_NUM_MENU_ITEMS;
+        default:
+          return 0;
     }
 }
 
 // Each section has a number of items;  we use a callback to specify this
 // You can also dynamically add and remove items using this
-static uint16_t menu_get_num_rows_callback(MenuLayer *menu_layer, uint16_t section_index, void *data) {
-    if (menu_layer == top_menu_layer) {
-        switch (section_index) {
-            case 0:
-              return TOP_MENU_FIRST_SECTION_NUM_MENU_ITEMS;
-            default:
-              return 0;
-        }
-    }
-    else if (menu_layer == devices_menu_layer) {
-        return deviceCount;
-    }
-    else {
-        return 0;
+static uint16_t devices_menu_get_num_rows_callback(MenuLayer *menu_layer, uint16_t section_index, void *data) {
+    switch (section_index) {
+        case 0:
+            return deviceCount;
+        default:
+            return 0;
     }
 }
 
-// A callback is used to specify the height of the section header
-static int16_t menu_get_header_height_callback(MenuLayer *menu_layer, uint16_t section_index, void *data) {
-    // This is a define provided in pebble.h that you may use for the default height
-    if (menu_layer == devices_menu_layer) {
-        return MENU_CELL_BASIC_HEADER_HEIGHT;
+// Each section has a number of items;  we use a callback to specify this
+// You can also dynamically add and remove items using this
+static uint16_t actions_menu_get_num_rows_callback(MenuLayer *menu_layer, uint16_t section_index, void *data) {
+    switch (section_index) {
+        case 0:
+            return actionCount;
+        default:
+            return 0;
     }
-    else {
-        return 0;
+}
+
+// A callback is used to specify the height of the header
+static int16_t top_menu_get_header_height_callback(MenuLayer *menu_layer, uint16_t section_index, void *data) {
+    return 0;
+}
+
+// A callback is used to specify the height of the header
+static int16_t devices_menu_get_header_height_callback(MenuLayer *menu_layer, uint16_t section_index, void *data) {
+    // This is a define provided in pebble.h that you may use for the default heigh
+    return MENU_CELL_BASIC_HEADER_HEIGHT * 2;
+}
+
+// A callback is used to specify the height of the header
+static int16_t actions_menu_get_header_height_callback(MenuLayer *menu_layer, uint16_t section_index, void *data) {
+    // This is a define provided in pebble.h that you may use for the default height
+    return MENU_CELL_BASIC_HEADER_HEIGHT;
+}
+
+// Here we capture when a user selects a menu item
+static void top_menu_select_callback(MenuLayer *menu_layer, MenuIndex *cell_index, void *data) {
+    // Use the row to specify which item will receive the select action
+    switch (cell_index->row) {
+        case 0:
+            // Go to the devices window
+            window_stack_push(devices_window, true /* Animated */);
+            break;
+        case 1:
+            // Go to the actions window
+            window_stack_push(actions_window, true /* Animated */);
+            break;
     }
 }
 
 // Here we capture when a user selects a menu item
-static void menu_select_callback(MenuLayer *menu_layer, MenuIndex *cell_index, void *data) {
-    if (menu_layer == top_menu_layer) {
-        // Use the row to specify which item will receive the select action
-        switch (cell_index->row) {
-            case 0:
-                // Go to the devices window
-                window_stack_push(devices_window, true /* Animated */);
-                break;
-            case 1:
-                // Go to the actions window
-                window_stack_push(actions_window, true /* Animated */);
-                break;
-        }
-    }
-    else if (menu_layer == devices_menu_layer) {
-        toggle_msg(cell_index->row);
-        device_data_list[cell_index->row].on = STATUS_TOGGLING;
-        layer_mark_dirty(menu_layer_get_layer(devices_menu_layer));
-    }
-    else if (menu_layer == actions_menu_layer) {
-        execute_msg(cell_index->row);
-        action_data_list[cell_index->row].status = STATUS_EXECUTING;
-        layer_mark_dirty(menu_layer_get_layer(actions_menu_layer));
+static void devices_menu_select_callback(MenuLayer *menu_layer, MenuIndex *cell_index, void *data) {
+    toggle_msg(cell_index->row);
+    device_data_list[cell_index->row].on = STATUS_TOGGLING;
+    layer_mark_dirty(menu_layer_get_layer(devices_menu_layer));
+}
+
+// Here we capture when a user selects a menu item
+static void actions_menu_select_callback(MenuLayer *menu_layer, MenuIndex *cell_index, void *data) {
+    execute_msg(cell_index->row);
+    action_data_list[cell_index->row].status = STATUS_EXECUTING;
+    layer_mark_dirty(menu_layer_get_layer(actions_menu_layer));
+}
+
+// Here we draw what header is
+static void top_menu_draw_header_callback(GContext* ctx, const Layer *cell_layer, uint16_t section_index, void *data) {
+    // Nothing to do - we're not using section headers
+}
+
+// Here we draw what header is
+static void devices_menu_draw_header_callback(GContext* ctx, const Layer *cell_layer, uint16_t section_index, void *data) {
+    // Determine which section we're working with
+    switch (section_index) {
+        case 0:
+            // Draw title text in the section header
+            menu_cell_basic_header_draw(ctx, cell_layer, "Click to toggle on/off\nClick and hold to dim");
+            break;
     }
 }
 
-// Here we draw what each header is
-static void top_menu_draw_header_callback(GContext* ctx, const Layer *cell_layer, uint16_t section_index, void *data) {
-    // Nothing to do - we're not using headers
+// Here we draw what header is
+static void actions_menu_draw_header_callback(GContext* ctx, const Layer *cell_layer, uint16_t section_index, void *data) {
+    // Determine which section we're working with
+    switch (section_index) {
+        case 0:
+            // Draw title text in the section header
+            menu_cell_basic_header_draw(ctx, cell_layer, "Click to execute");
+            break;
+    }
 }
 
 // This is the menu item draw callback where you specify what each item should look like
@@ -356,18 +382,6 @@ static void top_menu_draw_row_callback(GContext* ctx, const Layer *cell_layer, M
     }
 }
 
-// Here we draw what each header is
-static void devices_menu_draw_header_callback(GContext* ctx, const Layer *cell_layer, uint16_t section_index, void *data) {
-    // Determine which section we're working with
-    switch (section_index) {
-        case 0:
-            // Draw title text in the section header
-            snprintf(tempStr, TEMP_STRING_LENGTH, "%d Devices", deviceCount);
-            menu_cell_basic_header_draw(ctx, cell_layer, tempStr);
-            break;
-    }
-}
-
 // This is the menu item draw callback where you specify what each item should look like
 static void devices_menu_draw_row_callback(GContext* ctx, const Layer *cell_layer, MenuIndex *cell_index, void *data) {
     // Determine which section we're going to draw in
@@ -379,18 +393,6 @@ static void devices_menu_draw_row_callback(GContext* ctx, const Layer *cell_laye
                     (device_data_list[cell_index->row].on == STATUS_TOGGLING)? "Toggling...":
                     (device_data_list[cell_index->row].on)? "On" : "Off", NULL);
             }
-            break;
-    }
-}
-
-// Here we draw what each header is
-static void actions_menu_draw_header_callback(GContext* ctx, const Layer *cell_layer, uint16_t section_index, void *data) {
-    // Determine which section we're working with
-    switch (section_index) {
-        case 0:
-            // Draw title text in the section header
-            snprintf(tempStr, TEMP_STRING_LENGTH, "%d Actions", actionCount);
-            menu_cell_basic_header_draw(ctx, cell_layer, tempStr);
             break;
     }
 }
@@ -409,7 +411,7 @@ static void actions_menu_draw_row_callback(GContext* ctx, const Layer *cell_laye
 }
 
 static void loading_timer_callback(void *data) {
-    devices_msg();
+    devices_and_actions_msg();
 }
 
 static void loading_timeout_callback(void *data) {
@@ -439,7 +441,7 @@ static void loading_window_load(Window *window) {
     app_timer_register(250, loading_timer_callback, NULL);
     
     // Fire off a timeout handler
-    app_timer_register(5000, loading_timeout_callback, NULL);
+    app_timer_register(10000, loading_timeout_callback, NULL);
 }
 
 static void loading_window_unload(Window *window) {
@@ -466,12 +468,12 @@ static void top_window_load(Window *window) {
 
     // Set all the callbacks for the menu layer
     menu_layer_set_callbacks(top_menu_layer, NULL, (MenuLayerCallbacks){
-        .get_num_sections = menu_get_num_sections_callback,
-        .get_num_rows = menu_get_num_rows_callback,
-        .get_header_height = menu_get_header_height_callback,
+        .get_num_sections = top_menu_get_num_sections_callback,
+        .get_num_rows = top_menu_get_num_rows_callback,
+        .get_header_height = top_menu_get_header_height_callback,
         .draw_header = top_menu_draw_header_callback,
         .draw_row = top_menu_draw_row_callback,
-        .select_click = menu_select_callback,
+        .select_click = top_menu_select_callback,
     });
 
     // Bind the menu layer's click config provider to the window for interactivity
@@ -504,12 +506,12 @@ static void devices_window_load(Window *window) {
 
     // Set all the callbacks for the menu layer
     menu_layer_set_callbacks(devices_menu_layer, NULL, (MenuLayerCallbacks){
-        .get_num_sections = menu_get_num_sections_callback,
-        .get_num_rows = menu_get_num_rows_callback,
-        .get_header_height = menu_get_header_height_callback,
+        .get_num_sections = devices_menu_get_num_sections_callback,
+        .get_num_rows = devices_menu_get_num_rows_callback,
+        .get_header_height = devices_menu_get_header_height_callback,
         .draw_header = devices_menu_draw_header_callback,
         .draw_row = devices_menu_draw_row_callback,
-        .select_click = menu_select_callback,
+        .select_click = devices_menu_select_callback,
     });
 
     // Bind the menu layer's click config provider to the window for interactivity
@@ -517,8 +519,6 @@ static void devices_window_load(Window *window) {
     
     // Add it to the window for display
     layer_add_child(window_layer, menu_layer_get_layer(devices_menu_layer));
-    
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "Created Devices Window");
 }
 
 static void devices_window_unload(Window *window) {
@@ -538,13 +538,13 @@ static void actions_window_load(Window *window) {
     actions_menu_layer = menu_layer_create(bounds);
     
     // Set all the callbacks for the menu layer
-    menu_layer_set_callbacks(devices_menu_layer, NULL, (MenuLayerCallbacks){
-        .get_num_sections = menu_get_num_sections_callback,
-        .get_num_rows = menu_get_num_rows_callback,
-        .get_header_height = menu_get_header_height_callback,
+    menu_layer_set_callbacks(actions_menu_layer, NULL, (MenuLayerCallbacks){
+        .get_num_sections = actions_menu_get_num_sections_callback,
+        .get_num_rows = actions_menu_get_num_rows_callback,
+        .get_header_height = actions_menu_get_header_height_callback,
         .draw_header = actions_menu_draw_header_callback,
         .draw_row = actions_menu_draw_row_callback,
-        .select_click = menu_select_callback,
+        .select_click = actions_menu_select_callback,
     });
     
     // Bind the menu layer's click config provider to the window for interactivity
@@ -552,8 +552,6 @@ static void actions_window_load(Window *window) {
     
     // Add it to the window for display
     layer_add_child(window_layer, menu_layer_get_layer(actions_menu_layer));
-    
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "Created Actions Window");
 }
 
 static void actions_window_unload(Window *window) {

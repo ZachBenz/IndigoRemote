@@ -12,19 +12,18 @@
         "watchface": false
     },
     "appKeys": {
-        "get_devices": 1,
+        "get_devices_and_actions": 1,
         "device_count": 2,
         "device": 3,
         "device_number": 4,
         "device_name": 5,
         "device_on": 6,
         "device_toggle_on_off": 7,
-        "get_actions": 8,
-        "action_count": 9,
-        "action": 10,
-        "action_number": 11,
-        "action_name": 12,
-        "action_execute": 13
+        "action_count": 8,
+        "action": 9,
+        "action_number": 10,
+        "action_name": 11,
+        "action_execute": 12
     },
     "resources": {
         "media": [
