@@ -275,7 +275,7 @@ Pebble.addEventListener("appmessage", function(e) {
     console.log("appmessage received!!!!");
     if (e.payload.get_devices_and_actions) {
         console.log("get_devices_and_actions flag in payload");
-//        getDevices();
+        getDevices();
         getActions();
     }
     if (e.payload.device_toggle_on_off) {
