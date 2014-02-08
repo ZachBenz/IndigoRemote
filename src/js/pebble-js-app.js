@@ -59,7 +59,9 @@ Pebble.addEventListener("webviewclosed", function(e) {
 });
 
 function sendDeviceCount(deviceCount) {
-    Pebble.sendAppMessage({"device_count": deviceCount},
+    Pebble.sendAppMessage({"device_count_complete": 1,
+                          "device_count": deviceCount
+                          },
         function(e){
             console.log("Sent device_count message. transactionId=" + e.data.transactionId);
         },
@@ -172,7 +174,9 @@ function toggleDeviceOnOff(deviceNumber) {
 }
 
 function sendActionCount(actionCount) {
-    Pebble.sendAppMessage({"action_count": actionCount},
+    Pebble.sendAppMessage({"action_count_complete": 1,
+                          "action_count": actionCount
+                          },
         function(e){
             console.log("Sent action_count message. transactionId=" + e.data.transactionId);
         },
@@ -267,17 +271,17 @@ function executeAction(actionNumber) {
     req.send(null);
 }
 
-function dimDevice(dimRequest) {
+function dimDevice(deviceNumber, dimLevel) {
     var req = new XMLHttpRequest();
     // TODO: Support Digest Authentication
-    req.open('GET', prefixForGet + devices[dimRequest.device_dim].device_rest_url + "?brightness=" + dimRequest.device_dim_level + "&_method=put", true);  // `true` makes the request asynchronous
+    req.open('GET', prefixForGet + devices[deviceNumber].device_rest_url + "?brightness=" + dimLevel + "&_method=put", true);  // `true` makes the request asynchronous
     req.onload = function(e) {
         if (req.readyState == 4) {
             // 200 - HTTP OK
             if(req.status == 200) {
                 var deviceInfo = JSON.parse(req.responseText);
-                devices[dimRequest.device_dim].device_on = deviceInfo.isOn;
-                sendDeviceInfo(dimRequest.device_dim, devices[dimRequest.device_dim]);
+                devices[deviceNumber].device_on = deviceInfo.isOn;
+                sendDeviceInfo(deviceNumber, devices[deviceNumber]);
                 localStorage.setItem("devices", JSON.stringify(devices));
             } else {
                 // TODO: inform pebble that dim failed
@@ -298,14 +302,14 @@ Pebble.addEventListener("appmessage", function(e) {
     }
     if (e.payload.device_toggle_on_off) {
         console.log("device_toggle_on_off flag in payload");
-        toggleDeviceOnOff(e.payload.device_toggle_on_off);
+        toggleDeviceOnOff(e.payload.device_number);
     }
     if (e.payload.action_execute) {
         console.log("action_execute flag in payload");
-        executeAction(e.payload.action_execute);
+        executeAction(e.payload.action_number);
     }
     if (e.payload.device_dim) {
         console.log("device_dim flag in payload");
-        dimDevice(e.payload);
+        dimDevice(e.payload.device_number, e.payload.device_dim_level);
     }
 });

@@ -59,19 +59,21 @@ static uint8_t gotActionCount = STATUS_LOADING;
 
 enum {
     INDIGO_REMOTE_KEY_GET_DEVICES_AND_ACTIONS = 1,
-    INDIGO_REMOTE_KEY_DEVICE_COUNT = 2,
-    INDIGO_REMOTE_KEY_DEVICE = 3,
-    INDIGO_REMOTE_KEY_DEVICE_NUMBER = 4,
-    INDIGO_REMOTE_KEY_DEVICE_NAME = 5,
-    INDIGO_REMOTE_KEY_DEVICE_ON = 6,
-    INDIGO_REMOTE_KEY_DEVICE_TOGGLE_ON_OFF = 7,
-    INDIGO_REMOTE_KEY_DEVICE_DIM = 8,
-    INDIGO_REMOTE_KEY_DEVICE_DIM_LEVEL = 9,
-    INDIGO_REMOTE_KEY_ACTION_COUNT = 10,
-    INDIGO_REMOTE_KEY_ACTION = 11,
-    INDIGO_REMOTE_KEY_ACTION_NUMBER = 12,
-    INDIGO_REMOTE_KEY_ACTION_NAME = 13,
-    INDIGO_REMOTE_KEY_ACTION_EXECUTE = 14
+    INDIGO_REMOTE_KEY_DEVICE_COUNT_COMPLETE = 2,
+    INDIGO_REMOTE_KEY_DEVICE_COUNT = 3,
+    INDIGO_REMOTE_KEY_DEVICE = 4,
+    INDIGO_REMOTE_KEY_DEVICE_NUMBER = 5,
+    INDIGO_REMOTE_KEY_DEVICE_NAME = 6,
+    INDIGO_REMOTE_KEY_DEVICE_ON = 7,
+    INDIGO_REMOTE_KEY_DEVICE_TOGGLE_ON_OFF = 8,
+    INDIGO_REMOTE_KEY_DEVICE_DIM = 9,
+    INDIGO_REMOTE_KEY_DEVICE_DIM_LEVEL = 10,
+    INDIGO_REMOTE_KEY_ACTION_COUNT_COMPLETE = 11,
+    INDIGO_REMOTE_KEY_ACTION_COUNT = 12,
+    INDIGO_REMOTE_KEY_ACTION = 13,
+    INDIGO_REMOTE_KEY_ACTION_NUMBER = 14,
+    INDIGO_REMOTE_KEY_ACTION_NAME = 15,
+    INDIGO_REMOTE_KEY_ACTION_EXECUTE = 16
 };
 
 typedef struct {
@@ -92,12 +94,14 @@ static ActionData action_data_list[MAX_NUMBER_OF_ACTIONS];
 /******* MESSAGE PASSING WITH PHONE BASED PEBBLE APP *******/
 
 static void in_received_handler(DictionaryIterator *iter, void *context) {
+    Tuple *device_count_complete_tuple = dict_find(iter, INDIGO_REMOTE_KEY_DEVICE_COUNT_COMPLETE);
     Tuple *device_count_tuple = dict_find(iter, INDIGO_REMOTE_KEY_DEVICE_COUNT);
     Tuple *device_tuple = dict_find(iter, INDIGO_REMOTE_KEY_DEVICE);
+    Tuple *action_count_complete_tuple = dict_find(iter, INDIGO_REMOTE_KEY_ACTION_COUNT_COMPLETE);
     Tuple *action_count_tuple = dict_find(iter, INDIGO_REMOTE_KEY_ACTION_COUNT);
     Tuple *action_tuple = dict_find(iter, INDIGO_REMOTE_KEY_ACTION);
     
-    if (device_count_tuple) {
+    if (device_count_complete_tuple) {
         if (device_count_tuple->value->uint8 <= MAX_NUMBER_OF_DEVICES) {
             deviceCount = device_count_tuple->value->uint8;
         }
@@ -138,7 +142,7 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
         }
     }
     
-    if (action_count_tuple) {
+    if (action_count_complete_tuple) {
         // Got action count
         if (action_count_tuple->value->uint8 <= MAX_NUMBER_OF_ACTIONS) {
             actionCount = action_count_tuple->value->uint8;
@@ -219,7 +223,8 @@ static void devices_and_actions_msg(void) {
 
 // Request to toggle on/off the specified device
 static void toggle_msg(uint8_t deviceNumber) {
-    Tuplet device_toggle_on_off_tuple = TupletInteger(INDIGO_REMOTE_KEY_DEVICE_TOGGLE_ON_OFF, deviceNumber);
+    Tuplet device_toggle_on_off_tuple = TupletInteger(INDIGO_REMOTE_KEY_DEVICE_TOGGLE_ON_OFF, 1);
+    Tuplet device_number_tuple = TupletInteger(INDIGO_REMOTE_KEY_DEVICE_NUMBER, deviceNumber);
     
     DictionaryIterator *iter;
     app_message_outbox_begin(&iter);
@@ -229,6 +234,7 @@ static void toggle_msg(uint8_t deviceNumber) {
     }
     
     dict_write_tuplet(iter, &device_toggle_on_off_tuple);
+    dict_write_tuplet(iter, &device_number_tuple);
     dict_write_end(iter);
     
     app_message_outbox_send();
@@ -236,7 +242,8 @@ static void toggle_msg(uint8_t deviceNumber) {
 
 // Request to execute the specified action
 static void execute_msg(uint8_t actionNumber) {
-    Tuplet action_execute_tuple = TupletInteger(INDIGO_REMOTE_KEY_ACTION_EXECUTE, actionNumber);
+    Tuplet action_execute_tuple = TupletInteger(INDIGO_REMOTE_KEY_ACTION_EXECUTE, 1);
+    Tuplet action_number_tuple = TupletInteger(INDIGO_REMOTE_KEY_ACTION_NUMBER, actionNumber);
     
     DictionaryIterator *iter;
     app_message_outbox_begin(&iter);
@@ -246,6 +253,7 @@ static void execute_msg(uint8_t actionNumber) {
     }
     
     dict_write_tuplet(iter, &action_execute_tuple);
+    dict_write_tuplet(iter, &action_number_tuple);
     dict_write_end(iter);
     
     app_message_outbox_send();
@@ -253,7 +261,8 @@ static void execute_msg(uint8_t actionNumber) {
 
 // Request to execute the specified action
 static void dim_msg(uint8_t deviceNumber) {
-    Tuplet device_dim_tuple = TupletInteger(INDIGO_REMOTE_KEY_DEVICE_DIM, deviceNumber);
+    Tuplet device_dim_tuple = TupletInteger(INDIGO_REMOTE_KEY_DEVICE_DIM, 1);
+    Tuplet device_number_tuple = TupletInteger(INDIGO_REMOTE_KEY_DEVICE_NUMBER, deviceNumber);
     Tuplet device_dim_level_tuple = TupletInteger(INDIGO_REMOTE_KEY_DEVICE_DIM_LEVEL, dimLevel);
     
     DictionaryIterator *iter;
@@ -264,6 +273,7 @@ static void dim_msg(uint8_t deviceNumber) {
     }
     
     dict_write_tuplet(iter, &device_dim_tuple);
+    dict_write_tuplet(iter, &device_number_tuple);
     dict_write_tuplet(iter, &device_dim_level_tuple);
     dict_write_end(iter);
     
@@ -363,9 +373,11 @@ static void top_menu_select_callback(MenuLayer *menu_layer, MenuIndex *cell_inde
 
 // Here we capture when a user selects a menu item
 static void devices_menu_select_callback(MenuLayer *menu_layer, MenuIndex *cell_index, void *data) {
-    toggle_msg(cell_index->row);
-    device_data_list[cell_index->row].on = STATUS_TOGGLING;
-    layer_mark_dirty(menu_layer_get_layer(devices_menu_layer));
+    if (device_data_list[cell_index->row].on != STATUS_TOGGLING) {
+        toggle_msg(cell_index->row);
+        device_data_list[cell_index->row].on = STATUS_TOGGLING;
+        layer_mark_dirty(menu_layer_get_layer(devices_menu_layer));
+    }
 }
 
 static void devices_menu_select_long_click_callback(MenuLayer *menu_layer, MenuIndex *cell_index, void *data) {
@@ -377,9 +389,11 @@ static void devices_menu_select_long_click_callback(MenuLayer *menu_layer, MenuI
 
 // Here we capture when a user selects a menu item
 static void actions_menu_select_callback(MenuLayer *menu_layer, MenuIndex *cell_index, void *data) {
-    execute_msg(cell_index->row);
-    action_data_list[cell_index->row].status = STATUS_EXECUTING;
-    layer_mark_dirty(menu_layer_get_layer(actions_menu_layer));
+    if (action_data_list[cell_index->row].status != STATUS_EXECUTING) {
+        execute_msg(cell_index->row);
+        action_data_list[cell_index->row].status = STATUS_EXECUTING;
+        layer_mark_dirty(menu_layer_get_layer(actions_menu_layer));
+    }
 }
 
 // Here we draw what header is
