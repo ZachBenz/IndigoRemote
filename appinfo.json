@@ -30,19 +30,20 @@
     "resources": {
         "media": [
             {
+                "menuIcon": true,
                 "type": "png",
-                "name": "IMAGE_MENU_ICON_BINARY_WATCH",
-                "file": "images/menu_icon_binary_watch.png"
+                "name": "IMAGE_MENU_ICON_INDIGO_REMOTE",
+                "file": "images/menu_icon_indigo_remote.png"
             },
             {
                 "type": "png",
-                "name": "IMAGE_MENU_ICON_SECTOR_WATCH",
-                "file": "images/menu_icon_sector_watch.png"
+                "name": "IMAGE_MENU_ICON_DEVICE_MENU_ITEM",
+                "file": "images/menu_icon_device_menu_item.png"
             },
             {
                 "type": "png",
-                "name": "IMAGE_MENU_ICON_BIG_WATCH",
-                "file": "images/menu_icon_big_watch.png"
+                "name": "IMAGE_MENU_ICON_ACTION_MENU_ITEM",
+                "file": "images/menu_icon_action_menu_item.png"
             },
             {
                 "type": "png",

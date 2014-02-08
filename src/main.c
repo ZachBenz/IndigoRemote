@@ -32,7 +32,8 @@
 
 static Window *top_window;
 static MenuLayer *top_menu_layer;
-static GBitmap *top_menu_icons[TOP_MENU_NUM_ICONS];
+static GBitmap *device_menu_item_icon;
+static GBitmap *action_menu_item_icon;
 
 static Window *devices_window;
 static MenuLayer *devices_menu_layer;
@@ -408,12 +409,12 @@ static void top_menu_draw_row_callback(GContext* ctx, const Layer *cell_layer, M
             switch (cell_index->row) {
                 case 0:
                     // This is a basic menu item with a title and subtitle
-                    menu_cell_basic_draw(ctx, cell_layer, "Devices", (gotDeviceCount == STATUS_LOADING)? "Loading...":(gotDeviceCount == STATUS_LOADED)?"Control devices":"Could not connect", top_menu_icons[0]);
+                    menu_cell_basic_draw(ctx, cell_layer, "Devices", (gotDeviceCount == STATUS_LOADING)? "Loading...":(gotDeviceCount == STATUS_LOADED)?"Control devices":"Could not connect", device_menu_item_icon);
                     break;
                     
                 case 1:
                     // This is a basic menu item with a title and subtitle
-                    menu_cell_basic_draw(ctx, cell_layer, "Actions", (gotActionCount == STATUS_LOADING)? "Loading...":(gotActionCount == STATUS_LOADED)?"Execute actions":"Could not connect", top_menu_icons[1]);
+                    menu_cell_basic_draw(ctx, cell_layer, "Actions", (gotActionCount == STATUS_LOADING)? "Loading...":(gotActionCount == STATUS_LOADED)?"Execute actions":"Could not connect", action_menu_item_icon);
                     break;
             }
             break;
@@ -467,9 +468,8 @@ static void loading_timeout_callback(void *data) {
 static void top_window_load(Window *window) {
     // Here we load the bitmap assets
     // resource_init_current_app must be called before all asset loading
-    int num_menu_icons = 0;
-    top_menu_icons[num_menu_icons++] = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_MENU_ICON_BIG_WATCH);
-    top_menu_icons[num_menu_icons++] = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_MENU_ICON_SECTOR_WATCH);
+    device_menu_item_icon = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_MENU_ICON_DEVICE_MENU_ITEM);
+    action_menu_item_icon = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_MENU_ICON_ACTION_MENU_ITEM);
 
     // Now we prepare to initialize the menu layer
     // We need the bounds to specify the menu layer's viewport size
@@ -509,9 +509,8 @@ static void top_window_unload(Window *window) {
     menu_layer_destroy(top_menu_layer);
 
     // Cleanup the menu icons
-    for (int i = 0; i < TOP_MENU_NUM_ICONS; i++) {
-        gbitmap_destroy(top_menu_icons[i]);
-    }
+    gbitmap_destroy(device_menu_item_icon);
+    gbitmap_destroy(action_menu_item_icon);
 }
 
 // This initializes the menu upon window load
@@ -626,6 +625,10 @@ static void dim_click_config_provider(void *context) {
 
 // This initializes the menu upon window load
 static void dim_window_load(Window *window) {
+    action_icon_plus = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_ACTION_ICON_PLUS);
+    action_icon_select = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_ACTION_ICON_SELECT);
+    action_icon_minus = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_ACTION_ICON_MINUS);
+    
     // Create the action bar layer
     dim_action_bar_layer = action_bar_layer_create();
     action_bar_layer_add_to_window(dim_action_bar_layer, window);
@@ -665,13 +668,12 @@ static void dim_window_unload(Window *window) {
     text_layer_destroy(dim_body_text_layer);
     text_layer_destroy(dim_label_text_layer);
     action_bar_layer_destroy(dim_action_bar_layer);
+    gbitmap_destroy(action_icon_plus);
+    gbitmap_destroy(action_icon_select);
+    gbitmap_destroy(action_icon_minus);
 }
 
 static void init(void) {
-    action_icon_plus = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_ACTION_ICON_PLUS);
-    action_icon_select = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_ACTION_ICON_SELECT);
-    action_icon_minus = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_ACTION_ICON_MINUS);
-
     top_window = window_create();
     devices_window = window_create();
     actions_window = window_create();
