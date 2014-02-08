@@ -646,12 +646,12 @@ static void dim_window_load(Window *window) {
     text_layer_set_text(dim_header_text_layer, "Set dim level to:");
     layer_add_child(window_layer, text_layer_get_layer(dim_header_text_layer));
     
-    dim_body_text_layer = text_layer_create(GRect(4, 24 + 30, width, 60));
+    dim_body_text_layer = text_layer_create(GRect(4, 24 + 32, width, 60));
     text_layer_set_font(dim_body_text_layer, fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD));
     text_layer_set_background_color(dim_body_text_layer, GColorClear);
     layer_add_child(window_layer, text_layer_get_layer(dim_body_text_layer));
     
-    dim_label_text_layer = text_layer_create(GRect(4, 24 + 30 + 28 + 30, width, 60));
+    dim_label_text_layer = text_layer_create(GRect(4, 24 + 32 + 28 + 28, width, 60));
     text_layer_set_font(dim_label_text_layer, fonts_get_system_font(FONT_KEY_GOTHIC_18));
     text_layer_set_background_color(dim_label_text_layer, GColorClear);
     text_layer_set_text(dim_label_text_layer, selectedDeviceName);
