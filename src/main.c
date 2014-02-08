@@ -15,14 +15,14 @@
 #define STATUS_OFF 0
 #define STATUS_ON 1
 #define STATUS_NONE 10
-#define STATUS_GETTING_STATE 20
-#define STATUS_TOGGLING 30
-#define STATUS_EXECUTING 40
+#define STATUS_GETTING_STATE 11
+#define STATUS_TOGGLING 12
+#define STATUS_EXECUTING 13
+#define STATUS_LOADING 14
+#define STATUS_COULD_NOT_CONNECT 15
+#define STATUS_LOADED 16
 
 #define TEMP_STRING_LENGTH 15
-
-static Window *loading_window;
-static TextLayer *loading_text_layer;
 
 static Window *top_window;
 static MenuLayer *top_menu_layer;
@@ -31,12 +31,12 @@ static GBitmap *top_menu_icons[TOP_MENU_NUM_ICONS];
 static Window *devices_window;
 static MenuLayer *devices_menu_layer;
 static uint8_t deviceCount = 0;
-bool gotDeviceCount = false;
+uint8_t gotDeviceCount = STATUS_LOADING;
 
 static Window *actions_window;
 static MenuLayer *actions_menu_layer;
 static uint8_t actionCount = 0;
-bool gotActionCount = false;
+uint8_t gotActionCount = STATUS_LOADING;
 
 // Handy for using snprintf to display integers
 static char tempStr[TEMP_STRING_LENGTH];
@@ -93,12 +93,8 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
             device_data_list[i].on = STATUS_GETTING_STATE;
         }
 
-        // Getting device & action count is signal to dismiss loading screen
-        if (gotActionCount) {
-            window_stack_pop(false);
-            window_stack_push(top_window, true /* Animated */);
-        }
-        gotDeviceCount = true;
+        gotDeviceCount = STATUS_LOADED;
+        layer_mark_dirty(menu_layer_get_layer(top_menu_layer));
     }
     
     if (device_tuple) {
@@ -138,12 +134,8 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
             action_data_list[i].status = STATUS_NONE;
         }
         
-        // Getting device & action count is signal to dismiss loading screen
-        if (gotDeviceCount) {
-            window_stack_pop(false);
-            window_stack_push(top_window, true /* Animated */);
-        }
-        gotActionCount = true;
+        gotActionCount = STATUS_LOADED;
+        layer_mark_dirty(menu_layer_get_layer(top_menu_layer));
     }
     
     if (action_tuple) {
@@ -310,12 +302,16 @@ static void top_menu_select_callback(MenuLayer *menu_layer, MenuIndex *cell_inde
     // Use the row to specify which item will receive the select action
     switch (cell_index->row) {
         case 0:
-            // Go to the devices window
-            window_stack_push(devices_window, true /* Animated */);
+            if (gotDeviceCount == STATUS_LOADED) {
+                // Go to the devices window
+                window_stack_push(devices_window, true /* Animated */);
+            }
             break;
         case 1:
-            // Go to the actions window
-            window_stack_push(actions_window, true /* Animated */);
+            if (gotActionCount == STATUS_LOADED) {
+                // Go to the actions window
+                window_stack_push(actions_window, true /* Animated */);
+            }
             break;
     }
 }
@@ -370,12 +366,12 @@ static void top_menu_draw_row_callback(GContext* ctx, const Layer *cell_layer, M
             switch (cell_index->row) {
                 case 0:
                     // This is a basic menu item with a title and subtitle
-                    menu_cell_basic_draw(ctx, cell_layer, "Devices", "Control devices", top_menu_icons[0]);
+                    menu_cell_basic_draw(ctx, cell_layer, "Devices", (gotDeviceCount == STATUS_LOADING)? "Loading...":(gotDeviceCount == STATUS_LOADED)?"Control devices":"Could not connect", top_menu_icons[0]);
                     break;
                     
                 case 1:
                     // This is a basic menu item with a title and subtitle
-                    menu_cell_basic_draw(ctx, cell_layer, "Actions", "Execute actions", top_menu_icons[1]);
+                    menu_cell_basic_draw(ctx, cell_layer, "Actions", (gotActionCount == STATUS_LOADING)? "Loading...":(gotActionCount == STATUS_LOADED)?"Execute actions":"Could not connect", top_menu_icons[1]);
                     break;
             }
             break;
@@ -415,38 +411,14 @@ static void loading_timer_callback(void *data) {
 }
 
 static void loading_timeout_callback(void *data) {
-    if (window_stack_get_top_window() == loading_window) {
-        text_layer_set_text(loading_text_layer, "Could not\nconnect.");
-        layer_mark_dirty(text_layer_get_layer(loading_text_layer));
+    if (gotDeviceCount == STATUS_LOADING) {
+        gotDeviceCount = STATUS_COULD_NOT_CONNECT;
+        layer_mark_dirty(menu_layer_get_layer(top_menu_layer));
     }
-}
-
-// This initializes the menu upon window load
-static void loading_window_load(Window *window) {
-    // Now we prepare to initialize the menu layer
-    // We need the bounds to specify the menu layer's viewport size
-    // In this case, it'll be the same as the window's
-    Layer *window_layer = window_get_root_layer(window);
-    GRect bounds = layer_get_frame(window_layer);
-    
-    // Create the text layer
-    loading_text_layer = text_layer_create((GRect){ .origin = { 10, 10 }, .size = bounds.size });
-    text_layer_set_text(loading_text_layer, "Loading...");
-    text_layer_set_font(loading_text_layer, fonts_get_system_font(FONT_KEY_GOTHIC_28));
-    
-    // Add it to the window for display
-    layer_add_child(window_layer, text_layer_get_layer(loading_text_layer));
-    
-    // Fire off getting the devices info
-    app_timer_register(250, loading_timer_callback, NULL);
-    
-    // Fire off a timeout handler
-    app_timer_register(10000, loading_timeout_callback, NULL);
-}
-
-static void loading_window_unload(Window *window) {
-    // Destroy the text layer
-    text_layer_destroy(loading_text_layer);
+    if (gotActionCount == STATUS_LOADING) {
+        gotActionCount = STATUS_COULD_NOT_CONNECT;
+        layer_mark_dirty(menu_layer_get_layer(top_menu_layer));
+    }
 }
 
 // This initializes the menu upon window load
@@ -481,6 +453,13 @@ static void top_window_load(Window *window) {
 
     // Add it to the window for display
     layer_add_child(window_layer, menu_layer_get_layer(top_menu_layer));
+    
+    // Fire off getting the devices info
+    app_timer_register(250, loading_timer_callback, NULL);
+    
+    // Fire off a timeout handler
+    app_timer_register(10000, loading_timeout_callback, NULL);
+
 }
 
 static void top_window_unload(Window *window) {
@@ -560,17 +539,11 @@ static void actions_window_unload(Window *window) {
 }
 
 int main(void) {
-    loading_window = window_create();
     top_window = window_create();
     devices_window = window_create();
     actions_window = window_create();
     app_message_init();
     
-    // Setup the window handlers
-    window_set_window_handlers(loading_window, (WindowHandlers) {
-        .load = loading_window_load,
-        .unload = loading_window_unload,
-    });
     window_set_window_handlers(top_window, (WindowHandlers) {
         .load = top_window_load,
         .unload = top_window_unload,
@@ -584,12 +557,11 @@ int main(void) {
         .unload = actions_window_unload,
     });
 
-    window_stack_push(loading_window, true /* Animated */);
+    window_stack_push(top_window, true /* Animated */);
     
     app_event_loop();
 
     window_destroy(actions_window);
     window_destroy(devices_window);
     window_destroy(top_window);
-    window_destroy(loading_window);
 }
