@@ -6,11 +6,15 @@
 
 #define DEVICES_MENU_NUM_SECTIONS 1
 #define MAX_NUMBER_OF_DEVICES 50
-#define MAX_DEVICE_NAME_LENGTH 16
+#define MAX_DEVICE_NAME_LENGTH 96
 
 #define ACTIONS_MENU_NUM_SECTIONS 1
 #define MAX_NUMBER_OF_ACTIONS 50
-#define MAX_ACTION_NAME_LENGTH 16
+#define MAX_ACTION_NAME_LENGTH 96
+
+#define MAX_DIM 100
+#define MIN_DIM 0
+#define DEFAULT_DIM 50
 
 #define STATUS_OFF 0
 #define STATUS_ON 1
@@ -22,7 +26,9 @@
 #define STATUS_COULD_NOT_CONNECT 15
 #define STATUS_LOADED 16
 
-#define TEMP_STRING_LENGTH 15
+// Handy for using snprintf to display integers
+//#define TEMP_STRING_LENGTH 15
+//static char tempStr[TEMP_STRING_LENGTH];
 
 static Window *top_window;
 static MenuLayer *top_menu_layer;
@@ -31,15 +37,24 @@ static GBitmap *top_menu_icons[TOP_MENU_NUM_ICONS];
 static Window *devices_window;
 static MenuLayer *devices_menu_layer;
 static uint8_t deviceCount = 0;
-uint8_t gotDeviceCount = STATUS_LOADING;
+static uint8_t gotDeviceCount = STATUS_LOADING;
+
+static Window *dim_window;
+static ActionBarLayer *dim_action_bar_layer;
+static TextLayer *dim_header_text_layer;
+static TextLayer *dim_body_text_layer;
+static TextLayer *dim_label_text_layer;
+static uint8_t dimLevel = DEFAULT_DIM;
+static uint8_t selectedDeviceNumber = 0;
+static char selectedDeviceName[MAX_DEVICE_NAME_LENGTH];
+static GBitmap *action_icon_plus;
+static GBitmap *action_icon_select;
+static GBitmap *action_icon_minus;
 
 static Window *actions_window;
 static MenuLayer *actions_menu_layer;
 static uint8_t actionCount = 0;
-uint8_t gotActionCount = STATUS_LOADING;
-
-// Handy for using snprintf to display integers
-static char tempStr[TEMP_STRING_LENGTH];
+static uint8_t gotActionCount = STATUS_LOADING;
 
 enum {
     INDIGO_REMOTE_KEY_GET_DEVICES_AND_ACTIONS = 1,
@@ -49,11 +64,13 @@ enum {
     INDIGO_REMOTE_KEY_DEVICE_NAME = 5,
     INDIGO_REMOTE_KEY_DEVICE_ON = 6,
     INDIGO_REMOTE_KEY_DEVICE_TOGGLE_ON_OFF = 7,
-    INDIGO_REMOTE_KEY_ACTION_COUNT = 8,
-    INDIGO_REMOTE_KEY_ACTION = 9,
-    INDIGO_REMOTE_KEY_ACTION_NUMBER = 10,
-    INDIGO_REMOTE_KEY_ACTION_NAME = 11,
-    INDIGO_REMOTE_KEY_ACTION_EXECUTE = 12
+    INDIGO_REMOTE_KEY_DEVICE_DIM = 8,
+    INDIGO_REMOTE_KEY_DEVICE_DIM_LEVEL = 9,
+    INDIGO_REMOTE_KEY_ACTION_COUNT = 10,
+    INDIGO_REMOTE_KEY_ACTION = 11,
+    INDIGO_REMOTE_KEY_ACTION_NUMBER = 12,
+    INDIGO_REMOTE_KEY_ACTION_NAME = 13,
+    INDIGO_REMOTE_KEY_ACTION_EXECUTE = 14
 };
 
 typedef struct {
@@ -88,8 +105,7 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
         }
         
         for (int i = 0; i < deviceCount; i++) {
-            snprintf(tempStr, TEMP_STRING_LENGTH, "Device %d", i);
-            strncpy(device_data_list[i].name, tempStr, MAX_DEVICE_NAME_LENGTH);
+            strncpy(device_data_list[i].name, "Loading...", MAX_DEVICE_NAME_LENGTH);
             device_data_list[i].on = STATUS_GETTING_STATE;
         }
 
@@ -129,8 +145,7 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
         }
         
         for (int i = 0; i < actionCount; i++) {
-            snprintf(tempStr, TEMP_STRING_LENGTH, "Action %d", i);
-            strncpy(action_data_list[i].name, tempStr, MAX_ACTION_NAME_LENGTH);
+            strncpy(action_data_list[i].name, "Loading", MAX_ACTION_NAME_LENGTH);
             action_data_list[i].status = STATUS_NONE;
         }
         
@@ -225,6 +240,26 @@ static void execute_msg(uint8_t actionNumber) {
     
     app_message_outbox_send();
 }
+
+// Request to execute the specified action
+static void dim_msg(uint8_t deviceNumber) {
+    Tuplet device_dim_tuple = TupletInteger(INDIGO_REMOTE_KEY_DEVICE_DIM, deviceNumber);
+    Tuplet device_dim_level_tuple = TupletInteger(INDIGO_REMOTE_KEY_DEVICE_DIM_LEVEL, dimLevel);
+    
+    DictionaryIterator *iter;
+    app_message_outbox_begin(&iter);
+    
+    if (iter == NULL) {
+        return;
+    }
+    
+    dict_write_tuplet(iter, &device_dim_tuple);
+    dict_write_tuplet(iter, &device_dim_level_tuple);
+    dict_write_end(iter);
+    
+    app_message_outbox_send();
+}
+
 
 
 /******* WATCHAPP UI *******/
@@ -321,6 +356,13 @@ static void devices_menu_select_callback(MenuLayer *menu_layer, MenuIndex *cell_
     toggle_msg(cell_index->row);
     device_data_list[cell_index->row].on = STATUS_TOGGLING;
     layer_mark_dirty(menu_layer_get_layer(devices_menu_layer));
+}
+
+static void devices_menu_select_long_click_callback(MenuLayer *menu_layer, MenuIndex *cell_index, void *data) {
+    // Go to the dim window
+    selectedDeviceNumber = cell_index->row;
+    strncpy(selectedDeviceName, device_data_list[selectedDeviceNumber].name, MAX_DEVICE_NAME_LENGTH);
+    window_stack_push(dim_window, true /* Animated */);
 }
 
 // Here we capture when a user selects a menu item
@@ -445,7 +487,7 @@ static void top_window_load(Window *window) {
         .get_header_height = top_menu_get_header_height_callback,
         .draw_header = top_menu_draw_header_callback,
         .draw_row = top_menu_draw_row_callback,
-        .select_click = top_menu_select_callback,
+        .select_click = top_menu_select_callback
     });
 
     // Bind the menu layer's click config provider to the window for interactivity
@@ -491,6 +533,7 @@ static void devices_window_load(Window *window) {
         .draw_header = devices_menu_draw_header_callback,
         .draw_row = devices_menu_draw_row_callback,
         .select_click = devices_menu_select_callback,
+        .select_long_click = devices_menu_select_long_click_callback
     });
 
     // Bind the menu layer's click config provider to the window for interactivity
@@ -523,7 +566,7 @@ static void actions_window_load(Window *window) {
         .get_header_height = actions_menu_get_header_height_callback,
         .draw_header = actions_menu_draw_header_callback,
         .draw_row = actions_menu_draw_row_callback,
-        .select_click = actions_menu_select_callback,
+        .select_click = actions_menu_select_callback
     });
     
     // Bind the menu layer's click config provider to the window for interactivity
@@ -538,10 +581,101 @@ static void actions_window_unload(Window *window) {
     menu_layer_destroy(actions_menu_layer);
 }
 
-int main(void) {
+static void dim_update_text() {
+    static char body_text[50];
+    snprintf(body_text, sizeof(body_text), "%u Percent", dimLevel);
+    text_layer_set_text(dim_body_text_layer, body_text);
+}
+
+static void dim_increment_click_handler(ClickRecognizerRef recognizer, void *context) {
+    if (dimLevel >= MAX_DIM) {
+        return;
+    }
+    
+    dimLevel++;
+    
+    device_data_list[selectedDeviceNumber].on = STATUS_ON;
+    
+    dim_update_text();
+}
+
+static void dim_select_single_click_handler(ClickRecognizerRef recognizer, void *context) {
+    dim_msg(selectedDeviceNumber);
+}
+
+static void dim_decrement_click_handler(ClickRecognizerRef recognizer, void *context) {
+    if (dimLevel <= MIN_DIM) {
+        return;
+    }
+    
+    dimLevel--;
+    
+    if (dimLevel <= MIN_DIM) {
+        device_data_list[selectedDeviceNumber].on = STATUS_OFF;
+    }
+    
+    dim_update_text();
+}
+
+static void dim_click_config_provider(void *context) {
+    const uint16_t repeat_interval_ms = 50;
+    window_single_repeating_click_subscribe(BUTTON_ID_UP, repeat_interval_ms, (ClickHandler) dim_increment_click_handler);
+    window_single_click_subscribe(BUTTON_ID_SELECT, dim_select_single_click_handler);
+    window_single_repeating_click_subscribe(BUTTON_ID_DOWN, repeat_interval_ms, (ClickHandler) dim_decrement_click_handler);
+}
+
+// This initializes the menu upon window load
+static void dim_window_load(Window *window) {
+    // Create the action bar layer
+    dim_action_bar_layer = action_bar_layer_create();
+    action_bar_layer_add_to_window(dim_action_bar_layer, window);
+    
+    // Bind the menu layer's click config provider to the window for interactivity
+    action_bar_layer_set_click_config_provider(dim_action_bar_layer, dim_click_config_provider);
+    
+    action_bar_layer_set_icon(dim_action_bar_layer, BUTTON_ID_UP, action_icon_plus);
+    action_bar_layer_set_icon(dim_action_bar_layer, BUTTON_ID_SELECT, action_icon_select);
+    action_bar_layer_set_icon(dim_action_bar_layer, BUTTON_ID_DOWN, action_icon_minus);
+
+    Layer *window_layer = window_get_root_layer(window);
+    const int16_t width = layer_get_frame(window_layer).size.w - ACTION_BAR_WIDTH - 3;
+    
+    dim_header_text_layer = text_layer_create(GRect(4, 0, width, 60));
+    text_layer_set_font(dim_header_text_layer, fonts_get_system_font(FONT_KEY_GOTHIC_24));
+    text_layer_set_background_color(dim_header_text_layer, GColorClear);
+    text_layer_set_text(dim_header_text_layer, "Set dim level to:");
+    layer_add_child(window_layer, text_layer_get_layer(dim_header_text_layer));
+    
+    dim_body_text_layer = text_layer_create(GRect(4, 24 + 30, width, 60));
+    text_layer_set_font(dim_body_text_layer, fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD));
+    text_layer_set_background_color(dim_body_text_layer, GColorClear);
+    layer_add_child(window_layer, text_layer_get_layer(dim_body_text_layer));
+    
+    dim_label_text_layer = text_layer_create(GRect(4, 24 + 30 + 28 + 30, width, 60));
+    text_layer_set_font(dim_label_text_layer, fonts_get_system_font(FONT_KEY_GOTHIC_18));
+    text_layer_set_background_color(dim_label_text_layer, GColorClear);
+    text_layer_set_text(dim_label_text_layer, selectedDeviceName);
+    layer_add_child(window_layer, text_layer_get_layer(dim_label_text_layer));
+    
+    dim_update_text();
+}
+
+static void dim_window_unload(Window *window) {
+    text_layer_destroy(dim_header_text_layer);
+    text_layer_destroy(dim_body_text_layer);
+    text_layer_destroy(dim_label_text_layer);
+    action_bar_layer_destroy(dim_action_bar_layer);
+}
+
+static void init(void) {
+    action_icon_plus = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_ACTION_ICON_PLUS);
+    action_icon_select = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_ACTION_ICON_SELECT);
+    action_icon_minus = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_ACTION_ICON_MINUS);
+
     top_window = window_create();
     devices_window = window_create();
     actions_window = window_create();
+    dim_window = window_create();
     app_message_init();
     
     window_set_window_handlers(top_window, (WindowHandlers) {
@@ -556,12 +690,23 @@ int main(void) {
         .load = actions_window_load,
         .unload = actions_window_unload,
     });
-
-    window_stack_push(top_window, true /* Animated */);
+    window_set_window_handlers(dim_window, (WindowHandlers) {
+        .load = dim_window_load,
+        .unload = dim_window_unload,
+    });
     
-    app_event_loop();
+    window_stack_push(top_window, true /* Animated */);
+}
 
+static void deinit(void) {
+    window_destroy(dim_window);
     window_destroy(actions_window);
     window_destroy(devices_window);
     window_destroy(top_window);
+}
+
+int main(void) {
+    init();
+    app_event_loop();
+    deinit();
 }

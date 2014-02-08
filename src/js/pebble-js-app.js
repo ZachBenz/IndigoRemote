@@ -1,5 +1,5 @@
-var MAX_DEVICE_NAME_LENGTH = 16;
-var MAX_ACTION_NAME_LENGTH = 16;
+var MAX_DEVICE_NAME_LENGTH = 95; // 1 less than max on Pebble side to allow for strncpy to insert terminating null in strncpy
+var MAX_ACTION_NAME_LENGTH = 95; // 1 less than max on Pebble side to allow for strncpy to insert terminating null in strncpy
 var DEFAULT_TIMEOUT = 400;
 var TIMEOUT_SPACING = 200;
 
@@ -270,6 +270,27 @@ function executeAction(actionNumber) {
     req.send(null);
 }
 
+function dimDevice(deviceInfo) {
+    var req = new XMLHttpRequest();
+    // TODO: Support Digest Authentication
+    req.open('GET', prefixForGet + devices[deviceInfo.device_dim].device_rest_url + "?brightness=" + deviceInfo.device_dim_level + "&_method=put", true);  // `true` makes the request asynchronous
+    req.onload = function(e) {
+        if (req.readyState == 4) {
+            // 200 - HTTP OK
+            if(req.status == 200) {
+                var deviceInfo = JSON.parse(req.responseText);
+                devices[deviceNumber].device_on = deviceInfo.isOn;
+                sendDeviceInfo(deviceNumber, devices[deviceNumber]);
+                localStorage.setItem("devices", JSON.stringify(devices));
+            } else {
+// TODO - inform pebble that dim failed
+                console.log("Request returned error code " + req.status.toString());
+            }
+        }
+    }
+    req.send(null);
+}
+
 // Set callback for appmessage events
 Pebble.addEventListener("appmessage", function(e) {
     console.log("appmessage received!!!!");
@@ -285,5 +306,9 @@ Pebble.addEventListener("appmessage", function(e) {
     if (e.payload.action_execute) {
         console.log("action_execute flag in payload");
         executeAction(e.payload.action_execute);
+    }
+    if (e.payload.device_dim) {
+        console.log("device_dim flag in payload");
+        dimDevice(e.payload);
     }
 });
