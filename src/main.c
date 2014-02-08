@@ -111,7 +111,9 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
         }
 
         gotDeviceCount = STATUS_LOADED;
-        layer_mark_dirty(menu_layer_get_layer(top_menu_layer));
+        if (window_stack_get_top_window() == top_window) {
+            layer_mark_dirty(menu_layer_get_layer(top_menu_layer));
+        }
     }
     
     if (device_tuple) {
@@ -128,11 +130,11 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
                 if (on) {
                     device_data_list[deviceNumber->value->uint8].on = on->value->uint8;
                 }
+                
+                if (window_stack_get_top_window() == devices_window) {
+                    layer_mark_dirty(menu_layer_get_layer(devices_menu_layer));
+                }
             }
-        }
-        
-        if (window_stack_get_top_window() == devices_window) {
-            layer_mark_dirty(menu_layer_get_layer(devices_menu_layer));
         }
     }
     
@@ -151,25 +153,32 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
         }
         
         gotActionCount = STATUS_LOADED;
-        layer_mark_dirty(menu_layer_get_layer(top_menu_layer));
+        if (window_stack_get_top_window() == top_window) {
+            layer_mark_dirty(menu_layer_get_layer(top_menu_layer));
+        }
     }
     
     if (action_tuple) {
         // Add the action info to our list
         Tuple *actionNumber = dict_find(iter, INDIGO_REMOTE_KEY_ACTION_NUMBER);
         Tuple *name = dict_find(iter, INDIGO_REMOTE_KEY_ACTION_NAME);
+        APP_LOG(APP_LOG_LEVEL_DEBUG, "1");
         
         if (actionNumber) {
+            APP_LOG(APP_LOG_LEVEL_DEBUG, "2");
             if (actionNumber->value->uint8 < MAX_NUMBER_OF_ACTIONS) {
                 if (name) {
+                    APP_LOG(APP_LOG_LEVEL_DEBUG, "3");
                     strncpy(action_data_list[actionNumber->value->uint8].name, name->value->cstring, MAX_ACTION_NAME_LENGTH);
                 }
+                APP_LOG(APP_LOG_LEVEL_DEBUG, "4");
                 action_data_list[actionNumber->value->uint8].status = STATUS_NONE;
+                
+                if (window_stack_get_top_window() == actions_window) {
+                    APP_LOG(APP_LOG_LEVEL_DEBUG, "5");
+                    layer_mark_dirty(menu_layer_get_layer(actions_menu_layer));
+                }
             }
-        }
-        
-        if (window_stack_get_top_window() == actions_window) {
-            layer_mark_dirty(menu_layer_get_layer(actions_menu_layer));
         }
     }
 }
@@ -456,11 +465,15 @@ static void loading_timer_callback(void *data) {
 static void loading_timeout_callback(void *data) {
     if (gotDeviceCount == STATUS_LOADING) {
         gotDeviceCount = STATUS_COULD_NOT_CONNECT;
-        layer_mark_dirty(menu_layer_get_layer(top_menu_layer));
+        if (window_stack_get_top_window() == top_window) {
+            layer_mark_dirty(menu_layer_get_layer(top_menu_layer));
+        }
     }
     if (gotActionCount == STATUS_LOADING) {
         gotActionCount = STATUS_COULD_NOT_CONNECT;
-        layer_mark_dirty(menu_layer_get_layer(top_menu_layer));
+        if (window_stack_get_top_window() == top_window) {
+            layer_mark_dirty(menu_layer_get_layer(top_menu_layer));
+        }
     }
 }
 
@@ -643,7 +656,7 @@ static void dim_window_load(Window *window) {
     Layer *window_layer = window_get_root_layer(window);
     const int16_t width = layer_get_frame(window_layer).size.w - ACTION_BAR_WIDTH - 3;
     
-    dim_header_text_layer = text_layer_create(GRect(4, 0, width, 60));
+    dim_header_text_layer = text_layer_create(GRect(4, 4, width, 60));
     text_layer_set_font(dim_header_text_layer, fonts_get_system_font(FONT_KEY_GOTHIC_24));
     text_layer_set_background_color(dim_header_text_layer, GColorClear);
     text_layer_set_text(dim_header_text_layer, "Set dim level to:");

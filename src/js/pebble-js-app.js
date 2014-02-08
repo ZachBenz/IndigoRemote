@@ -163,7 +163,7 @@ function toggleDeviceOnOff(deviceNumber) {
                 sendDeviceInfo(deviceNumber, devices[deviceNumber]);
                 localStorage.setItem("devices", JSON.stringify(devices));
             } else {
-// TODO - inform pebble that toggle failed
+                // TODO: inform pebble that toggle failed
                 console.log("Request returned error code " + req.status.toString());
             }
         }
@@ -257,12 +257,9 @@ function executeAction(actionNumber) {
         if (req.readyState == 4) {
             // 200 - HTTP OK
             if (req.status == 200) {
-// TODO - inform pebble that action was succesful
-//                var actionInfo = JSON.parse(req.responseText);
-//                sendActionInfo(actionNumber, actions[actionNumber]);
-//                localStorage.setItem("actions", JSON.stringify(actions));
+                sendActionInfo(actionNumber, actions[actionNumber]);
             } else {
-// TODO - inform pebble that action failed
+                // TODO: inform pebble that action failed
                 console.log("Request returned error code " + req.status.toString());
             }
         }
@@ -270,20 +267,20 @@ function executeAction(actionNumber) {
     req.send(null);
 }
 
-function dimDevice(deviceInfo) {
+function dimDevice(dimRequest) {
     var req = new XMLHttpRequest();
     // TODO: Support Digest Authentication
-    req.open('GET', prefixForGet + devices[deviceInfo.device_dim].device_rest_url + "?brightness=" + deviceInfo.device_dim_level + "&_method=put", true);  // `true` makes the request asynchronous
+    req.open('GET', prefixForGet + devices[dimRequest.device_dim].device_rest_url + "?brightness=" + dimRequest.device_dim_level + "&_method=put", true);  // `true` makes the request asynchronous
     req.onload = function(e) {
         if (req.readyState == 4) {
             // 200 - HTTP OK
             if(req.status == 200) {
                 var deviceInfo = JSON.parse(req.responseText);
-                devices[deviceNumber].device_on = deviceInfo.isOn;
-                sendDeviceInfo(deviceNumber, devices[deviceNumber]);
+                devices[dimRequest.device_dim].device_on = deviceInfo.isOn;
+                sendDeviceInfo(dimRequest.device_dim, devices[dimRequest.device_dim]);
                 localStorage.setItem("devices", JSON.stringify(devices));
             } else {
-// TODO - inform pebble that dim failed
+                // TODO: inform pebble that dim failed
                 console.log("Request returned error code " + req.status.toString());
             }
         }
