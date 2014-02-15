@@ -100,7 +100,8 @@ enum {
     INDIGO_REMOTE_KEY_ACTION = 13,
     INDIGO_REMOTE_KEY_ACTION_NUMBER = 14,
     INDIGO_REMOTE_KEY_ACTION_NAME = 15,
-    INDIGO_REMOTE_KEY_ACTION_EXECUTE = 16
+    INDIGO_REMOTE_KEY_ACTION_EXECUTE = 16,
+    INDIGO_REMOTE_KEY_LOADING = 17
 };
 
 typedef struct {
@@ -127,6 +128,7 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
     Tuple *action_count_complete_tuple = dict_find(iter, INDIGO_REMOTE_KEY_ACTION_COUNT_COMPLETE);
     Tuple *action_count_tuple = dict_find(iter, INDIGO_REMOTE_KEY_ACTION_COUNT);
     Tuple *action_tuple = dict_find(iter, INDIGO_REMOTE_KEY_ACTION);
+    Tuple *loading_tuple = dict_find(iter, INDIGO_REMOTE_KEY_LOADING);
     
     if (device_count_complete_tuple) {
         if (device_count_tuple->value->uint8 <= MAX_NUMBER_OF_DEVICES) {
@@ -193,24 +195,32 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
         // Add the action info to our list
         Tuple *actionNumber = dict_find(iter, INDIGO_REMOTE_KEY_ACTION_NUMBER);
         Tuple *name = dict_find(iter, INDIGO_REMOTE_KEY_ACTION_NAME);
-        APP_LOG(APP_LOG_LEVEL_DEBUG, "1");
         
         if (actionNumber) {
-            APP_LOG(APP_LOG_LEVEL_DEBUG, "2");
             if (actionNumber->value->uint8 < MAX_NUMBER_OF_ACTIONS) {
                 if (name) {
-                    APP_LOG(APP_LOG_LEVEL_DEBUG, "3");
                     strncpy(action_data_list[actionNumber->value->uint8].name, name->value->cstring, MAX_ACTION_NAME_LENGTH);
                 }
-                APP_LOG(APP_LOG_LEVEL_DEBUG, "4");
                 action_data_list[actionNumber->value->uint8].status = STATUS_NONE;
                 
                 if (window_stack_get_top_window() == actions_window) {
-                    APP_LOG(APP_LOG_LEVEL_DEBUG, "5");
                     layer_mark_dirty(menu_layer_get_layer(actions_menu_layer));
                 }
             }
         }
+    }
+    
+    if (loading_tuple) {
+        // Configuration changed, reset to initial loading state
+        window_stack_pop_all(false /* Not animated */);
+        window_stack_push(top_window, false /* Not animated */);
+    
+        deviceCount = 0;
+        gotDeviceCount = STATUS_LOADING;
+        actionCount = 0;
+        gotActionCount = STATUS_LOADING;
+        
+        layer_mark_dirty(menu_layer_get_layer(top_menu_layer));
     }
 }
 

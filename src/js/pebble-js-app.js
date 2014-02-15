@@ -27,8 +27,7 @@
 
 var MAX_DEVICE_NAME_LENGTH = 95; // 1 less than max on Pebble side to allow for strncpy to insert terminating null in strncpy
 var MAX_ACTION_NAME_LENGTH = 95; // 1 less than max on Pebble side to allow for strncpy to insert terminating null in strncpy
-var DEFAULT_TIMEOUT = 400;
-var TIMEOUT_SPACING = 200;
+var DEFAULT_TIMEOUT_BACKOFF = 100;
 
 var deviceCount = localStorage.getItem("deviceCount");
 if (!deviceCount) {
@@ -50,17 +49,25 @@ if (!actions) {
     actions = new Array();
 }
 
-var serverAddress = localStorage.getItem("serverAddress");
-if (!serverAddress) {
-    serverAddress = "";
+// Config approach using data URI adopted from: https://github.com/bertfreudenberg/PebbleONE/blob/c0b9ef6143a9f3655c5faa810baa88208eb6c1d8/src/js/pebble-js-app.js
+var config_html; // see bottom of file
+
+var config = {
+    serverAddress: "",
+    serverPort:    "8000"
+};
+
+config.serverAddress = localStorage.getItem("serverAddress");
+if (!config.serverAddress) {
+    config.serverAddress = "";
 }
 
-var serverPort = localStorage.getItem("serverPort");
-if (!serverPort) {
-    serverPort = "8000";
+config.serverPort = localStorage.getItem("serverPort");
+if (config.serverPort) {
+    config.serverPort = "8000";
 }
 
-var prefixForGet = "http://" + serverAddress + ":" + serverPort;
+var prefixForGet = "http://" + config.serverAddress + ":" + config.serverPort;
 console.log("prefixForGet is: " + prefixForGet);
 
 // Set callback for the app ready event
@@ -71,48 +78,69 @@ Pebble.addEventListener("ready", function(e) {
 
 Pebble.addEventListener("showConfiguration", function() {
     console.log("showing configuration");
-    Pebble.openURL('https://s3.amazonaws.com/IndigoRemote/settings.html?serverAddress=' + serverAddress + '&serverPort=' + serverPort);
+//    Pebble.openURL('https://s3.amazonaws.com/IndigoRemote/settings.html?serverAddress=' + serverAddress + '&serverPort=' + serverPort);
+    var html = config_html.replace('__CONFIG__', JSON.stringify(config), 'g');
+    Pebble.openURL('data:text/html,' + encodeURI(html + '<!--.html'));
 });
 
 Pebble.addEventListener("webviewclosed", function(e) {
+    send({"loading": 1});
     console.log("configuration closed");
     // webview closed
     var options = JSON.parse(decodeURIComponent(e.response));
     console.log("Options = " + JSON.stringify(options));
     localStorage.setItem("serverAddress", options.serverAddress);
-    serverAddress = options.serverAddress;
+    config.serverAddress = options.serverAddress;
     localStorage.setItem("serverPort", options.serverPort);
-    serverPort = options.serverPort;
+    config.serverPort = options.serverPort;
+    prefixForGet = "http://" + config.serverAddress + ":" + config.serverPort;
+    getDevices();
+    getActions();
 });
 
+var messageQueue = [], queueInProgress = false, timeoutBackOff = DEFAULT_TIMEOUT_BACKOFF;
+function sendNextInQueue() {
+    if (messageQueue.length === 0) {
+        queueInProgress = false;
+        return;
+    } else {
+        queueInProgress = true;
+    }
+    var message = messageQueue[0];
+    Pebble.sendAppMessage(message,
+                              function (e) {
+                                console.log("Succesfully sent message: " + JSON.stringify(messageQueue[0]));
+                                // remove the current message from the queue then handle the next one
+                                timeoutBackOff = DEFAULT_TIMEOUT_BACKOFF;
+                                messageQueue.shift();
+                                return sendNextInQueue();
+                              },
+                              function (e) {
+                                console.log("Failed to send message (will retry): " + JSON.stringify(messageQueue[0]));
+                                // repeat without removing the current message from the queue
+                                // using setTimeout with incremental backoff
+                                timeoutBackOff *= 2;
+                                setTimeout(sendNextInQueue, timeoutBackOff);
+                              }
+                          );
+}
+function send(message) {
+    messageQueue.push(message);
+    if (!queueInProgress) {
+        sendNextInQueue();
+    }
+}
+
 function sendDeviceCount(deviceCount) {
-    Pebble.sendAppMessage({"device_count_complete": 1,
-                          "device_count": deviceCount
-                          },
-        function(e){
-            console.log("Sent device_count message. transactionId=" + e.data.transactionId);
-        },
-        function(e){
-            console.log("Unable to send device_count message. transactionId=" + e.data.transactionId);
-            setTimeout(sendDeviceCount(deviceCount), DEFAULT_TIMEOUT);
-        }
-    );
+    send({"device_count_complete": 1,
+        "device_count": deviceCount});
 }
 
 function sendDeviceInfo(deviceNumber, deviceInfo) {
-    Pebble.sendAppMessage({"device": 1,
-                          "device_number": deviceNumber,
-                          "device_name": deviceInfo.device_name,
-                          "device_on": deviceInfo.device_on
-                          },
-        function(e){
-            console.log("Sent device message. device=" + deviceInfo.device_name + " transactionId=" + e.data.transactionId);
-        },
-        function(e){
-            console.log("Unable to send device message. device=" + deviceInfo.device_name + " transactionId=" + e.data.transactionId);
-            setTimeout(sendDeviceInfo(deviceNumber, deviceInfo), DEFAULT_TIMEOUT);
-        }
-    );
+    send({"device": 1,
+        "device_number": deviceNumber,
+        "device_name": deviceInfo.device_name,
+        "device_on": deviceInfo.device_on});
 }
 
 function getDevices() {
@@ -158,14 +186,9 @@ function getDevices() {
                 // We've got the total count of controllable devices, so send it out
                 sendDeviceCount(deviceCount);
                 
-                // Need to pace ourselves so we don't overwhelm Pebble
-                var timeout = DEFAULT_TIMEOUT;
-                
                 // Now send out the information for each device
                 for (var i = 0, j = devices.length; i < j; i += 1) {
-                    setTimeout(sendDeviceInfo(i, devices[i]), timeout);
-                    // Space out the messages in time
-                    timeout += TIMEOUT_SPACING;
+                    sendDeviceInfo(i, devices[i]);
                 }
             }
             else {
@@ -201,32 +224,14 @@ function toggleDeviceOnOff(deviceNumber) {
 }
 
 function sendActionCount(actionCount) {
-    Pebble.sendAppMessage({"action_count_complete": 1,
-                          "action_count": actionCount
-                          },
-        function(e){
-            console.log("Sent action_count message. transactionId=" + e.data.transactionId);
-        },
-        function(e){
-            console.log("Unable to send action_count message. transactionId=" + e.data.transactionId);
-            setTimeout(sendActionCount(actionCount), DEFAULT_TIMEOUT);
-        }
-    );
+    send({"action_count_complete": 1,
+         "action_count": actionCount});
 }
 
 function sendActionInfo(actionNumber, actionInfo) {
-    Pebble.sendAppMessage({"action": 1,
-                          "action_number": actionNumber,
-                          "action_name": actionInfo.action_name
-                          },
-        function(e){
-            console.log("Sent action message. action=" + actionInfo.action_name + " transactionId=" + e.data.transactionId);
-        },
-        function(e){
-            console.log("Unable to send action message. action=" + actionInfo.action_name + " transactionId=" + e.data.transactionId);
-            setTimeout(sendActionInfo(actionNumber, actionInfo), DEFAULT_TIMEOUT);
-        }
-    );
+    send({"action": 1,
+        "action_number": actionNumber,
+        "action_name": actionInfo.action_name});
 }
 
 function getActions() {
@@ -259,14 +264,9 @@ function getActions() {
                 // We've got the total count of actions, so send it out
                 sendActionCount(actionCount);
                 
-                // Need to pace ourselves so we don't overwhelm Pebble
-                var timeout = DEFAULT_TIMEOUT;
-                
                 // Now send out the information for each action
                 for (var i = 0, j = actions.length; i < j; i += 1) {
-                    setTimeout(sendActionInfo(i, actions[i]), timeout);
-                    // Space out the messages in time
-                    timeout += TIMEOUT_SPACING;
+                    sendActionInfo(i, actions[i]);
                 }
             }
             else {
@@ -340,3 +340,65 @@ Pebble.addEventListener("appmessage", function(e) {
         dimDevice(e.payload.device_number, e.payload.device_dim_level);
     }
 });
+
+config_html = '<!DOCTYPE html>\
+<html>\
+<head>\
+<meta name="viewport" content="width=device-width">\
+<style>\
+body {\
+background-color: rgb(100,100,100);\
+font-family: sans-serif;\
+}\
+div,form {\
+text-shadow: 0px 1px 1px white;\
+padding: 10px;\
+margin: 10px 0;\
+border: 1px solid rgb(50,50,50);\
+border-radius: 10px;\
+background: linear-gradient(rgb(230,230,230), rgb(150,150,150));\
+}\
+div.center {text-align: center}\
+h1 {color: rgb(100,100,100); margin-top: 0, padding-top: 0;}\
+}\
+input {\
+float: right;\
+-webkit-transform-origin: 100% 100%;\
+}\
+p,a {color: rgb(200,200,200)}\
+</style>\
+</head>\
+<body>\
+<div class="center">\
+<h1>Indigo Remote</h1>\
+</div>\
+<form onsubmit="return onSubmit(this)">\
+<label for="server-address">Server IP Address:</label>\
+<br>\
+<input type="text" size="15" name="server-address" id="server-address" required></input>\
+<br>\
+<label for="server-port">Server Port Number:</label>\
+<br>\
+<input type="text" size="15" name="server-port" id="server-port" required></input>\
+<br><br>\
+<input type="submit" value="Save">\
+<br>\
+</form>\
+<p>\
+Authenticated connections and Prism Reflector are not yet supported.<br>\
+</p>\
+<script>\
+var config = JSON.parse(\'__CONFIG__\');\
+document.getElementById("server-address").value = config.serverAddress;\
+document.getElementById("server-port").value = config.serverPort;\
+function onSubmit(e) {\
+var result = {\
+serverAddress: document.getElementById("server-address").value,\
+serverPort: document.getElementById("server-port").value,\
+};\
+window.location.href = "pebblejs://close#" + JSON.stringify(result);\
+return false;\
+}\
+</script>\
+</body>\
+</html>';
