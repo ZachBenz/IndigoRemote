@@ -25,7 +25,13 @@
  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-var digest = require('http-digest-client').createDigestClient('username', 'password');
+// Some things we need to define to get node.js modules to work
+if (typeof window.location === "undefined") {
+    window.location = [];
+}
+if (typeof window.location.protocol === "undefined") {
+    window.location.protocol = "http:";
+}
 
 var MAX_DEVICE_NAME_LENGTH = 95; // 1 less than max on Pebble side to allow for strncpy to insert terminating null in strncpy
 var MAX_ACTION_NAME_LENGTH = 95; // 1 less than max on Pebble side to allow for strncpy to insert terminating null in strncpy
@@ -74,13 +80,12 @@ console.log("prefixForGet is: " + prefixForGet);
 
 // Set callback for the app ready event
 Pebble.addEventListener("ready", function(e) {
-    console.log("connect!" + e.ready);
+    console.log("Ready: " + e.ready);
     console.log(e.type);
 });
 
 Pebble.addEventListener("showConfiguration", function() {
     console.log("showing configuration");
-//    Pebble.openURL('https://s3.amazonaws.com/IndigoRemote/settings.html?serverAddress=' + serverAddress + '&serverPort=' + serverPort);
     var html = config_html.replace('__CONFIG__', JSON.stringify(config), 'g');
     Pebble.openURL('data:text/html,' + encodeURI(html + '<!--.html'));
 });
