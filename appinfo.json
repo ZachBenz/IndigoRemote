@@ -1,8 +1,8 @@
 {
-    "versionLabel": "1.1",
+    "versionLabel": "1.2",
     "uuid": "0f7678c3-f1e7-45e3-bbce-94fc10685b55",
     "longName": "Indigo Remote",
-    "versionCode": 2,
+    "versionCode": 3,
     "capabilities": [
         "configurable"
     ],

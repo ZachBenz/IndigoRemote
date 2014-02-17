@@ -36,7 +36,7 @@ if (!deviceCount) {
 
 var devices = JSON.parse(localStorage.getItem("devices"));
 if (!devices) {
-    devices = new Array();
+    devices = [];
 }
 
 var actionCount = localStorage.getItem("actionCount");
@@ -46,7 +46,7 @@ if (!actionCount) {
 
 var actions = JSON.parse(localStorage.getItem("actions"));
 if (!actions) {
-    actions = new Array();
+    actions = [];
 }
 
 // Config approach using data URI adopted from: https://github.com/bertfreudenberg/PebbleONE/blob/c0b9ef6143a9f3655c5faa810baa88208eb6c1d8/src/js/pebble-js-app.js
@@ -156,10 +156,11 @@ function getDevices() {
             var response = JSON.parse(req.responseText);
             if (response.length > 0) {
                 // Pare down to just devices that have typeSupportsOnOff: true
-                deviceCount = 0
-                devices = new Array();
+                deviceCount = 0;
+                devices = [];
                 
-                for (var i = 0, j = response.length; i < j; i += 1) {
+                var i, j;
+                for (i = 0, j = response.length; i < j; i += 1) {
                     var deviceRequest = new XMLHttpRequest();
                     deviceRequest.open('GET', prefixForGet + response[i].restURL, false);  // `false` makes the request synchronous
                     deviceRequest.send(null);
@@ -187,7 +188,7 @@ function getDevices() {
                 sendDeviceCount(deviceCount);
                 
                 // Now send out the information for each device
-                for (var i = 0, j = devices.length; i < j; i += 1) {
+                for (i = 0, j = devices.length; i < j; i += 1) {
                     sendDeviceInfo(i, devices[i]);
                 }
             }
@@ -198,7 +199,7 @@ function getDevices() {
             console.log("Request returned error code " + req.status.toString());
             sendDeviceCount(0);
         }
-    }
+    };
     req.send(null);
 }
 
@@ -219,7 +220,7 @@ function toggleDeviceOnOff(deviceNumber) {
                 console.log("Request returned error code " + req.status.toString());
             }
         }
-    }
+    };
     req.send(null);
 }
 
@@ -247,9 +248,10 @@ function getActions() {
             var response = JSON.parse(req.responseText);
             if (response.length > 0) {
                 actionCount = 0;
-                actions = new Array();
+                actions = [];
                 
-                for (var i = 0, j = response.length; i < j; i += 1) {
+                var i,j;
+                for (i = 0, j = response.length; i < j; i += 1) {
                     // Track action information
                     actions[actionCount] =
                     {
@@ -265,7 +267,7 @@ function getActions() {
                 sendActionCount(actionCount);
                 
                 // Now send out the information for each action
-                for (var i = 0, j = actions.length; i < j; i += 1) {
+                for (i = 0, j = actions.length; i < j; i += 1) {
                     sendActionInfo(i, actions[i]);
                 }
             }
@@ -276,7 +278,7 @@ function getActions() {
             console.log("Request returned error code " + req.status.toString());
             sendActionCount(0);
         }
-    }
+    };
     req.send(null);
 }
 
@@ -294,7 +296,7 @@ function executeAction(actionNumber) {
                 console.log("Request returned error code " + req.status.toString());
             }
         }
-    }
+    };
     req.send(null);
 }
 
@@ -315,7 +317,7 @@ function dimDevice(deviceNumber, dimLevel) {
                 console.log("Request returned error code " + req.status.toString());
             }
         }
-    }
+    };
     req.send(null);
 }
 
@@ -341,6 +343,7 @@ Pebble.addEventListener("appmessage", function(e) {
     }
 });
 
+/*jshint multistr: true */
 config_html = '<!DOCTYPE html>\
 <html>\
 <head>\
