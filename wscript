@@ -5,6 +5,9 @@
 # Feel free to customize this to your needs.
 #
 
+import shutil
+from sh import browserify
+
 # Use the python sh module to run the jshint command
 from sh import jshint
 
@@ -23,7 +26,11 @@ def build(ctx):
     ctx.load('pebble_sdk')
 
     # Run jshint before compiling the app.
-    jshint("src/js/pebble-js-app.js")
+    jshint("src/js-pre-browserify/pebble-js-app-pre-browserify.js")
+
+    # Run browserify
+    shutil.rmtree("src/js/pebble-js-app.js", True)
+    browserify("src/js-pre-browserify/pebble-js-app-pre-browserify.js","-o","src/js/pebble-js-app.js")
 
     ctx.pbl_program(source=ctx.path.ant_glob('src/**/*.c'),
                     target='pebble-app.elf')
