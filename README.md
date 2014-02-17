@@ -7,6 +7,7 @@ Preparing Development Environment
 2. Install Node.js
 3. sudo npm install -g browserify
 4. sudo npm install -g jshint
+5. npm install http-digest-client
 
 License
 =======
