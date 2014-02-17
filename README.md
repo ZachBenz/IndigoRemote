@@ -1,6 +1,16 @@
 Indigo Remote
 ============
 
+Preparing Development Environment
+=================================
+1. Install the Pebble developer tools
+2. Install Node.js
+3. sudo npm install -g browserify
+4. sudo npm install -g jshint
+
+License
+=======
+
 Copyright (c) 2014, Zachary Benz
 All rights reserved.
 
