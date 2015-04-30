@@ -32,26 +32,38 @@
         <form onsubmit="return onSubmit(this)">
             <label for="server-address">Server IP Address:</label>
             <br>
-            <input type="text" size="15" name="server-address" id="server-address" required></input>
+            <input type="text" size="20" name="server-address" id="server-address" required></input>
             <br>
             <label for="server-port">Server Port Number:</label>
             <br>
-            <input type="text" size="15" name="server-port" id="server-port" required></input>
+            <input type="text" size="20" name="server-port" id="server-port" required></input>
+            <br>
+            <label for="user-name">User Name:</label>
+            <br>
+            <input type="text" size="20" name="user-name" id="user-name" optional></input>
+            <br>
+            <label for="user-pass">User Pass:</label>
+            <br>
+            <input type="password" size="20" name="user-pass" id="user-pass" optional></input>
             <br><br>
             <input type="submit" value="Save">
                 <br>
         </form>
         <p>
-        Authenticated connections and Prism Reflector are not yet supported.<br>
+        Prism Reflector is not yet supported.<br>
         </p>
         <script>
             var config = JSON.parse('__CONFIG__');
                                     document.getElementById("server-address").value = config.serverAddress;
                                     document.getElementById("server-port").value = config.serverPort;
+                                    document.getElementById("server-port").value = config.userName;
+                                    document.getElementById("server-port").value = config.userPass;
                                     function onSubmit(e) {
                                     var result = {
                                     serverAddress: document.getElementById("server-address").value,
                                     serverPort: document.getElementById("server-port").value,
+                                    userName: document.getElementById("user-name").value,
+                                    userPass: document.getElementById("user-pass").value,
                                     };
                                     window.location.href = "pebblejs://close#" + JSON.stringify(result);
                                     return false;
