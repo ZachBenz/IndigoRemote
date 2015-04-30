@@ -2,6 +2,7 @@
   Indigo Remote
  
   Copyright (c) 2014, Zachary Benz
+  Copyright (c) 2015, Seth Goldman
   All rights reserved.
  
   Redistribution and use in source and binary forms, with or without
