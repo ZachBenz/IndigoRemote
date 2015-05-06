@@ -49,25 +49,24 @@
             <input type="submit" value="Save">
                 <br>
         </form>
-        <p>
-        Prism Reflector is not yet supported.<br>
-        </p>
         <script>
             var config = JSON.parse('__CONFIG__');
-                                    document.getElementById("server-address").value = config.serverAddress;
-                                    document.getElementById("server-port").value = config.serverPort;
-                                    document.getElementById("server-port").value = config.userName;
-                                    document.getElementById("server-port").value = config.userPass;
-                                    function onSubmit(e) {
-                                    var result = {
-                                    serverAddress: document.getElementById("server-address").value,
-                                    serverPort: document.getElementById("server-port").value,
-                                    userName: document.getElementById("user-name").value,
-                                    userPass: document.getElementById("user-pass").value,
-                                    };
-                                    window.location.href = "pebblejs://close#" + JSON.stringify(result);
-                                    return false;
-                                    }
+            document.getElementById("reflector-address").value = config.reflectorAddress;
+            document.getElementById("server-address").value = config.serverAddress;
+            document.getElementById("server-port").value = config.serverPort;
+            document.getElementById("server-port").value = config.userName;
+            document.getElementById("server-port").value = config.userPass;
+            function onSubmit(e) {
+                var result = {
+                    reflectorAddress: document.getElementById("reflector-address").value,
+                    serverAddress: document.getElementById("server-address").value,
+                    serverPort: document.getElementById("server-port").value,
+                    userName: document.getElementById("user-name").value,
+                    userPass: document.getElementById("user-pass").value,
+                };
+                window.location.href = "pebblejs://close#" + JSON.stringify(result);
+                return false;
+            }
             </script>
     </body>
 </html>
