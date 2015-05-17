@@ -55,10 +55,10 @@ var config_html; // see bottom of file
 
 var config = {
     reflectorAddress: "",
-    serverAddress: "192.168.10.106",
+    serverAddress: "",
     serverPort: "8176",
-    userName: "seth",
-    userPass: "foobar"
+    userName: "",
+    userPass: ""
 };
 
 function init_config() {
@@ -84,7 +84,7 @@ init_config();
 function buildURL(route) {
     var url = "";
     if (config.reflectorAddress !== null && config.reflectorAddress.length) {
-	url += "https://" + config.reflectorAddress;
+	url += "http://" + config.reflectorAddress;
     } else {
 	url += "http://" + config.serverAddress;
 	if (config.serverPort !== null && config.serverPort.length) 
