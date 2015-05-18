@@ -54,6 +54,7 @@ if (!actions) actions = [];
 var config_html; // see bottom of file
 
 var config = {
+    useReflector: false,
     reflectorAddress: "",
     serverAddress: "",
     serverPort: "8176",
@@ -63,6 +64,9 @@ var config = {
 
 function init_config() {
     var localVal;
+    localVal = localStorage.getItem("useReflector");
+    if (localVal !== "undefined") config.useReflector = localVal;
+
     localVal = localStorage.getItem("reflectorAddress");
     if (localVal) config.reflectorAddress = localVal;
 
@@ -83,7 +87,7 @@ init_config();
 
 function buildURL(route) {
     var url = "";
-    if (config.reflectorAddress !== null && config.reflectorAddress.length) {
+    if (config.useReflector && config.reflectorAddress !== null && config.reflectorAddress.length) {
 	url += "http://" + config.reflectorAddress;
     } else {
 	url += "http://" + config.serverAddress;
@@ -120,6 +124,8 @@ Pebble.addEventListener("webviewclosed", function(e) {
 	}
 	var options = JSON.parse(decodeURIComponent(e.response));
 	console.log("Options = " + JSON.stringify(options));
+	localStorage.setItem("useReflector", options.useReflector);
+	config.useReflector = options.useReflector;
 	localStorage.setItem("reflectorAddress", options.reflectorAddress);
 	config.reflectorAddress = options.reflectorAddress;
 	localStorage.setItem("serverAddress", options.serverAddress);
@@ -387,6 +393,7 @@ margin: 10px 0;\
 border: 1px solid rgb(50,50,50);\
 border-radius: 10px;\
 background: linear-gradient(rgb(230,230,230), rgb(150,150,150));\
+font-size: 20px;\
 }\
 div.center {text-align: center}\
 h1 {color: rgb(100,100,100); margin-top: 0, padding-top: 0;}\
@@ -396,36 +403,41 @@ float: right;\
 -webkit-transform-origin: 100% 100%;\
 }\
 p,a {color: rgb(200,200,200)}\
+.textBox { font-size: 20px; }\
+.large-btn { font-size: 20px; }\
 </style>\
 </head>\
 <body>\
 <div class="center">\
 <h1>Indigo Remote</h1>\
 </div>\
+<div class="center" style="border-style: none;">\
 <form onsubmit="return onSubmit(this)">\
+<input type="checkbox" name="useReflector" id="useReflector"></input>\
 <label for="reflector-address">Prism Reflector:</label>\
 <br>\
-<input type="text" size="20" name="reflector-address" id="reflector-address" optional></input>\
+<input type="text" class="textBox" size="20" name="reflector-address" id="reflector-address" optional></input>\
 <br>\
 <label for="server-address">Server IP Address:</label>\
 <br>\
-<input type="text" size="20" name="server-address" id="server-address" required></input>\
+<input type="text" class="textBox" size="20" name="server-address" id="server-address" required></input>\
 <br>\
 <label for="server-port">Server Port Number:</label>\
 <br>\
-<input type="text" size="20" name="server-port" id="server-port" required></input>\
+<input type="text" class="textBox" size="20" name="server-port" id="server-port" required></input>\
 <br>\
 <label for="user-name">User Name:</label>\
 <br>\
-<input type="text" size="20" name="user-name" id="user-name" optional></input>\
+<input type="text" class="textBox" size="20" name="user-name" id="user-name" optional></input>\
 <br>\
 <label for="user-pass">User Password:</label>\
 <br>\
-<input type="password" size="20" name="user-pass" id="user-pass" optional></input>\
+<input type="password" class="textBox" size="20" name="user-pass" id="user-pass" optional></input>\
 <br><br>\
-<input type="submit" value="Save">\
+<input class="large-btn" type="submit" value="Save">\
 <br>\
 </form>\
+</div>\
 <script>\
 var config = JSON.parse(\'__CONFIG__\');\
 document.getElementById("reflector-address").value = config.reflectorAddress;\
@@ -433,8 +445,10 @@ document.getElementById("server-address").value = config.serverAddress;\
 document.getElementById("server-port").value = config.serverPort;\
 document.getElementById("user-name").value = config.userName;\
 document.getElementById("user-pass").value = config.userPass;\
+document.getElementById("useReflector").checked = config.useReflector;\
 function onSubmit(e) {\
 var result = {\
+useReflector: document.getElementById("useReflector").checked,\
 reflectorAddress: document.getElementById("reflector-address").value,\
 serverAddress: document.getElementById("server-address").value,\
 serverPort: document.getElementById("server-port").value,\
