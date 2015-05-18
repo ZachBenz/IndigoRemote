@@ -65,7 +65,7 @@ var config = {
 function init_config() {
     var localVal;
     localVal = localStorage.getItem("useReflector");
-    if (localVal !== "undefined") config.useReflector = localVal;
+    config.useReflector = localVal && localVal == "yes";
 
     localVal = localStorage.getItem("reflectorAddress");
     if (localVal) config.reflectorAddress = localVal;
@@ -124,7 +124,7 @@ Pebble.addEventListener("webviewclosed", function(e) {
 	}
 	var options = JSON.parse(decodeURIComponent(e.response));
 	console.log("Options = " + JSON.stringify(options));
-	localStorage.setItem("useReflector", options.useReflector);
+	localStorage.setItem("useReflector", options.useReflector ? "yes" : "no");
 	config.useReflector = options.useReflector;
 	localStorage.setItem("reflectorAddress", options.reflectorAddress);
 	config.reflectorAddress = options.reflectorAddress;
