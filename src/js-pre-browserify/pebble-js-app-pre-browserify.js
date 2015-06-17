@@ -101,7 +101,7 @@ function buildURL(route) {
 var authDigest = require('auth-digest');
 
 function myHttpCall(route, callback) {
-    return authDigest.makeHttpCall(buildURL(route), route, callback, config.userName, config.userPass);
+    return authDigest.makeHttpCall(buildURL(route), callback, config.userName, config.userPass);
 }
 
 // Set callback for the app ready event
