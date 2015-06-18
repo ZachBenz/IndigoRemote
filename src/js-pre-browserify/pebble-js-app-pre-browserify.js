@@ -56,10 +56,10 @@ var config_html; // see bottom of file
 var config = {
     useReflector: false,
     reflectorAddress: "",
-    serverAddress: "192.168.10.106",
+    serverAddress: "",
     serverPort: "8176",
-    userName: "seth",
-    userPass: "foobar"
+    userName: "",
+    userPass: ""
 };
 
 function init_config() {
