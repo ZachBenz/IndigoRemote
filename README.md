@@ -7,11 +7,13 @@ Preparing Development Environment
 2. Install Node.js
 3. sudo npm install -g browserify
 4. sudo npm install -g jshint
+5. npm install crypto-js
 
 License
 =======
 
 Copyright (c) 2014, Zachary Benz
+Copyright (c) 2015, Seth Goldman
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without

@@ -56,10 +56,10 @@ var config_html; // see bottom of file
 var config = {
     useReflector: false,
     reflectorAddress: "",
-    serverAddress: "",
+    serverAddress: "192.168.10.106",
     serverPort: "8176",
-    userName: "",
-    userPass: ""
+    userName: "seth",
+    userPass: "foobar"
 };
 
 function init_config() {
@@ -98,10 +98,10 @@ function buildURL(route) {
     return url;
 }
 
-var authDigest = require('auth-digest');
+var authDigest = require('./auth-digest');
 
 function myHttpCall(route, callback) {
-    return authDigest.makeHttpCall(buildURL(route), callback, config.userName, config.userPass);
+    return authDigest.makeHttpCallPebble(buildURL(route), callback, config.userName, config.userPass);
 }
 
 // Set callback for the app ready event
