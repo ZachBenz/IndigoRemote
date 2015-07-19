@@ -2,3 +2,4 @@
 .lock-waf_darwin_build
 build
 src/js/pebble-js-app.js
+.idea
