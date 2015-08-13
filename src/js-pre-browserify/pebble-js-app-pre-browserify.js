@@ -384,7 +384,9 @@ function processActionsResult(data, kind) {
 }
 
 function processActions(actions) {
-    localStorage.setItem('actionCount', actions.length);
+    actionCount = actions.length;
+
+    localStorage.setItem('actionCount', actionCount);
     localStorage.setItem('actions', JSON.stringify(actions));
 
     // We've got the total count of actions, so send it out
