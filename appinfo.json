@@ -1,6 +1,6 @@
 {
   "uuid": "d1b5e0af-bb86-461c-bac1-26b70cc2bb36",
-  "versionLabel": "2.0",
+  "versionLabel": "2.1",
   "targetPlatforms": [ "aplite", "basalt" ],
   "sdkVersion": "3",
   "shortName": "Indigo Remote+",

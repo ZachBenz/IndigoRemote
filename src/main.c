@@ -1,7 +1,8 @@
 /*
-Indigo Remote 
+Indigo Remote+
  
 Copyright (c) 2014, Zachary Benz
+ Copyright (c) 2015, Seth Goldman
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -564,7 +565,7 @@ static void top_window_load(Window *window) {
     app_timer_register(250, loading_timer_callback, NULL);
     
     // Fire off a timeout handler
-    app_timer_register(10000, loading_timeout_callback, NULL);
+    app_timer_register(30000, loading_timeout_callback, NULL);
 
 }
 

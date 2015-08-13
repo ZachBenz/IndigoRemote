@@ -45,6 +45,7 @@ var http = require('http');
 var https = require('https');
 var url = require('url');
 var authHdr = "";
+var xhrTimeout = 0;
 
 exports.makeHttpCall = function (url, callback, username, password) {
     if (XMLHttpRequest !== null)
@@ -144,6 +145,7 @@ function getHttpRequest(url, route, challenge, username, password) {
 function makeHttpCallInternal(url, callback, username, password, challenge, numRetries) {
     var maxRetries = 1;
     var xhr = getHttpRequest(url, getRoute(url), challenge, username, password);
+    xhr.timeout = xhrTimeout;
     var processResults = function (e) {
         if (xhr.readyState != 4) return null;
         if (xhr.status == 401) {
