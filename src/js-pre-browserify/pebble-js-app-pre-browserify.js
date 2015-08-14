@@ -63,7 +63,8 @@ var config = {
     serverAddress: "",
     serverPort: "8176",
     userName: "",
-    userPass: ""
+    userPass: "",
+    filter: ""
 };
 
 function init_config() {
@@ -85,6 +86,9 @@ function init_config() {
 
     localVal = localStorage.getItem("userPass");
     if (localVal) config.userPass = localVal;
+
+    localVal = localStorage.getItem("filter");
+    if (localVal) config.filter = localVal;
 }
 
 init_config();
@@ -141,6 +145,8 @@ Pebble.addEventListener("webviewclosed", function (e) {
     config.userName = options.userName;
     localStorage.setItem("userPass", options.userPass);
     config.userPass = options.userPass;
+    localStorage.setItem("filter", options.filter);
+    config.filter = options.filter;
     send({"loading": 1});
 });
 
@@ -276,16 +282,25 @@ function processDevices(items, kind) {
             myHttpCall(item.restURL, handler);
         }
     };
-    myHttpCall(items[0].restURL, handler);
+    if (numDevices === 0)
+        registerDeviceInfo();
+    else
+        myHttpCall(items[0].restURL, handler);
 }
 
 function strip_unicode(str) {
     return str.replace(/[\uE000-\uF8FF]/g, '');
 }
 
+function checkFilter(str) {
+    str = strip_unicode(str);
+    if (config.filter.length === 0) return str;
+    return str.indexOf(config.filter) === 0 ? str.substring(config.filter.length) : '';
+}
+
 function build_device(name, url) {
     return {
-        name: strip_unicode(name).substring(0, MAX_DEVICE_NAME_LENGTH),
+        name: name,
         restURL: url
     };
 }
@@ -296,7 +311,10 @@ function processDevicesJSON(data) {
     var deviceCount = 0;
 
     for (var i = 0; i < response.length; i++) {
-        devices[deviceCount++] = build_device(response[i].name, response[i].restURL);
+        var itemName = checkFilter(response[i].name);
+        if (itemName !== '') {
+            devices[deviceCount++] = build_device(itemName, response[i].restURL);
+        }
     }
     return devices;
 }
@@ -307,7 +325,10 @@ function processDevicesXML(data) {
     var items = new xmldoc.XmlDocument(data).children;
 
     for (var i = 0; i < items.length; i++) {
-        devices[deviceCount++] = build_device(items[i].val, items[i].attr.href);
+        var itemName = checkFilter(items[i].val);
+        if (itemName !== '') {
+            devices[deviceCount++] = build_device(itemName, items[i].attr.href);
+        }
     }
     return devices;
 }
@@ -410,7 +431,10 @@ function processActionsJSON(data) {
     var actionCount = 0;
 
     for (var i = 0; i < Math.min(response.length, MAX_NUMBER_OF_ACTIONS); i++) {
-        actions[actionCount++] = build_action(response[i].name, response[i].restURL);
+        var itemName = checkFilter(response[i].name);
+        if (itemName !== '') {
+            actions[actionCount++] = build_action(itemName, response[i].restURL);
+        }
     }
     return actions;
 }
@@ -421,7 +445,10 @@ function processActionsXML(data) {
     var items = new xmldoc.XmlDocument(data).children;
 
     for (var i = 0; i < Math.min(items.length, MAX_NUMBER_OF_ACTIONS); i++) {
-        actions[actionCount++] = build_action(items[i].val, items[i].attr.href);
+        var itemName = checkFilter(items[i].val);
+        if (itemName !== '') {
+            actions[actionCount++] = build_action(itemName, items[i].attr.href);
+        }
     }
     return actions;
 }
@@ -533,6 +560,10 @@ p,a {color: rgb(200,200,200)}\
 <label for="user-pass">User Password:</label>\
 <br>\
 <input type="password" class="textBox" size="20" name="user-pass" id="user-pass" optional></input>\
+<br>\
+<label for="filter">Item Filter:</label>\
+<br>\
+<input type="text" class="textBox" size="20" name="filter" id="filter" optional></input>\
 <br><br>\
 <input class="large-btn" type="submit" value="Save">\
 <br>\
@@ -546,6 +577,7 @@ document.getElementById("server-port").value = config.serverPort;\
 document.getElementById("user-name").value = config.userName;\
 document.getElementById("user-pass").value = config.userPass;\
 document.getElementById("useReflector").checked = config.useReflector;\
+document.getElementById("filter").value = config.filter;\
 function onSubmit(e) {\
 var result = {\
 useReflector: document.getElementById("useReflector").checked,\
@@ -554,6 +586,7 @@ serverAddress: document.getElementById("server-address").value,\
 serverPort: document.getElementById("server-port").value,\
 userName: document.getElementById("user-name").value,\
 userPass: document.getElementById("user-pass").value,\
+filter: document.getElementById("filter").value,\
 };\
 window.location.href = "pebblejs://close#" + JSON.stringify(result);\
 return false;\
