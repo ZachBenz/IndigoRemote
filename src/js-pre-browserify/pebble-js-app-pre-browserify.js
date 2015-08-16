@@ -116,6 +116,7 @@ function myHttpCall(route, callback) {
 // Set callback for the app ready event
 Pebble.addEventListener("ready", function (e) {
     console.log("Ready to go: " + JSON.stringify(e));
+    getDevicesAndActions();
 });
 
 Pebble.addEventListener("showConfiguration", function () {
@@ -325,7 +326,7 @@ function processDevicesXML(data) {
     var items = new xmldoc.XmlDocument(data).children;
 
     for (var i = 0; i < items.length; i++) {
-        var itemName = checkFilter(items[i].val);
+        var itemName = checkFilter(items[i].val).substring(0, MAX_DEVICE_NAME_LENGTH);
         if (itemName !== '') {
             devices[deviceCount++] = build_device(itemName, items[i].attr.href);
         }
@@ -481,13 +482,18 @@ function dimDevice(deviceNumber, dimLevel) {
     myHttpCall(path, handler);
 }
 
+function getDevicesAndActions() {
+    console.log('Loading Devices and Actions');
+    getDevices(apiKind);
+    getActions(apiKind);
+}
+
 // Set callback for appmessage events
 Pebble.addEventListener("appmessage", function (e) {
     console.log("appmessage received!!!!" + JSON.stringify(e));
     if (e.payload.get_devices_and_actions) {
         console.log("get_devices_and_actions flag in payload");
-        getDevices(apiKind);
-        getActions(apiKind);
+        getDevicesAndActions();
     }
     if (e.payload.device_toggle_on_off) {
         console.log("device_toggle_on_off flag in payload");

@@ -562,7 +562,7 @@ static void top_window_load(Window *window) {
     layer_add_child(window_layer, menu_layer_get_layer(top_menu_layer));
     
     // Fire off getting the devices info
-    app_timer_register(250, loading_timer_callback, NULL);
+    //app_timer_register(250, loading_timer_callback, NULL);
     
     // Fire off a timeout handler
     app_timer_register(30000, loading_timeout_callback, NULL);
