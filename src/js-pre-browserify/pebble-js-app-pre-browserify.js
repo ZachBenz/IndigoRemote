@@ -421,7 +421,7 @@ function processActions(actions) {
 
 function build_action(name, url) {
     return {
-        action_name: name, //name.substring(0, MAX_ACTION_NAME_LENGTH),
+        action_name: name.substring(0, MAX_ACTION_NAME_LENGTH),
         action_rest_url: url.replace('.xml', '.json')
     };
 }
