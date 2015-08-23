@@ -199,6 +199,7 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
         
         if (actionNumber) {
             if (actionNumber->value->uint8 < MAX_NUMBER_OF_ACTIONS) {
+//                APP_LOG(APP_LOG_LEVEL_DEBUG, name->value->cstring);
                 if (name) {
                     strncpy(action_data_list[actionNumber->value->uint8].name, name->value->cstring, MAX_ACTION_NAME_LENGTH);
                 }
@@ -243,6 +244,7 @@ static void app_message_init(void) {
 }
 
 // Request information about the devices and actions known to the Indigo Server
+/*
 static void devices_and_actions_msg(void) {
     Tuplet get_devices_and_actions_tuple = TupletInteger(INDIGO_REMOTE_KEY_GET_DEVICES_AND_ACTIONS, 1);
     
@@ -258,6 +260,7 @@ static void devices_and_actions_msg(void) {
     
     app_message_outbox_send();
 }
+*/
 
 // Request to toggle on/off the specified device
 static void toggle_msg(uint8_t deviceNumber) {
@@ -502,17 +505,22 @@ static void actions_menu_draw_row_callback(GContext* ctx, const Layer *cell_laye
     // Determine which section we're going to draw in
     switch (cell_index->section) {
         case 0:
-            if (cell_index->row < deviceCount) {
-                menu_cell_basic_draw(ctx, cell_layer, action_data_list[cell_index->row].name,
-                                     (action_data_list[cell_index->row].status == STATUS_EXECUTING)? "Executing...":"", NULL);
+            if (cell_index->row < actionCount) {
+                menu_cell_basic_draw(ctx,
+                                     cell_layer,
+                                     action_data_list[cell_index->row].name,
+                                     (action_data_list[cell_index->row].status == STATUS_EXECUTING)? "Executing..." : "",
+                                     NULL);
             }
             break;
     }
 }
 
+/*
 static void loading_timer_callback(void *data) {
     devices_and_actions_msg();
 }
+*/
 
 static void loading_timeout_callback(void *data) {
     if (gotDeviceCount == STATUS_LOADING) {
