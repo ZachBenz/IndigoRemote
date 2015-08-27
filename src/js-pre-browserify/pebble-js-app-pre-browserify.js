@@ -42,20 +42,16 @@ var DEFAULT_TIMEOUT_BACKOFF = 100;
 
 var apiKind = 'xml';
 
-var deviceCount = localStorage.getItem("deviceCount");
-if (!deviceCount) deviceCount = 0;
-
-var devices = JSON.parse(localStorage.getItem("devices"));
-if (!devices) devices = [];
-
-var actionCount = localStorage.getItem("actionCount");
-if (!actionCount) actionCount = 0;
-
-var actions = JSON.parse(localStorage.getItem("actions"));
-if (!actions) actions = [];
+var deviceCount = 0;
+var devices = [];
+var actionCount = 0;
+var actions = [];
 
 // Config approach using data URI adopted from: https://github.com/bertfreudenberg/PebbleONE/blob/c0b9ef6143a9f3655c5faa810baa88208eb6c1d8/src/js/pebble-js-app.js
 var config_html; // see bottom of file
+
+var settings = ["useReflector", "reflectorAddress", "serverAddress", "serverPort", "userName", "userPass", "filter"];
+var defaults = ["no", "", "", "8176", "", "", ""];
 
 var config = {
     useReflector: false,
@@ -68,34 +64,37 @@ var config = {
 };
 
 function init_config() {
+    console.log("Reading configuration");
     var localVal;
-    localVal = localStorage.getItem("useReflector");
-    config.useReflector = localVal && localVal == "yes";
 
-    localVal = localStorage.getItem("reflectorAddress");
-    if (localVal) config.reflectorAddress = localVal;
+    for (var i=0; i<settings.length; i++) {
+        var item = settings[i];
+        try {
+            localVal = localStorage.getItem(item);
+            if (item == 'useReflector')
+                config[item] = localVal == 'yes';
+            else
+                config[item] = localVal;
+        } catch (e) {
+            console.log("Problem retrieving setting: " + item);
+            config[item] = defaults[i];
+        }
+    }
+}
 
-    localVal = localStorage.getItem("serverAddress");
-    if (localVal) config.serverAddress = localVal;
+function reset_config() {
+    console.log("Resetting configuration");
 
-    localVal = localStorage.getItem("serverPort");
-    if (localVal) config.serverPort = localVal;
-
-    localVal = localStorage.getItem("userName");
-    if (localVal) config.userName = localVal;
-
-    localVal = localStorage.getItem("userPass");
-    if (localVal) config.userPass = localVal;
-
-    localVal = localStorage.getItem("filter");
-    if (localVal) config.filter = localVal;
+    for (var i=0; i<settings.length; i++) {
+        localStorage.setItem(settings[i], defaults[i]);
+    }
 }
 
 init_config();
 
 function buildURL(route) {
     var url = "";
-    if (config.useReflector && config.reflectorAddress !== null && config.reflectorAddress.length) {
+    if (config.useReflector == 'yes' && config.reflectorAddress !== null && config.reflectorAddress.length) {
         url += "http://" + config.reflectorAddress;
     } else {
         url += "http://" + config.serverAddress;
@@ -116,6 +115,7 @@ function myHttpCall(route, callback) {
 // Set callback for the app ready event
 Pebble.addEventListener("ready", function (e) {
     console.log("Ready to go: " + JSON.stringify(e));
+    console.log("Config is: " + JSON.stringify(config));
     getDevicesAndActions();
 });
 
@@ -132,23 +132,28 @@ Pebble.addEventListener("webviewclosed", function (e) {
         console.log("Changes aborted");
         return;
     }
-    var options = JSON.parse(decodeURIComponent(e.response));
-    console.log("Options = " + JSON.stringify(options));
-    localStorage.setItem("useReflector", options.useReflector ? "yes" : "no");
-    config.useReflector = options.useReflector;
-    localStorage.setItem("reflectorAddress", options.reflectorAddress);
-    config.reflectorAddress = options.reflectorAddress;
-    localStorage.setItem("serverAddress", options.serverAddress);
-    config.serverAddress = options.serverAddress;
-    localStorage.setItem("serverPort", options.serverPort);
-    config.serverPort = options.serverPort;
-    localStorage.setItem("userName", options.userName);
-    config.userName = options.userName;
-    localStorage.setItem("userPass", options.userPass);
-    config.userPass = options.userPass;
-    localStorage.setItem("filter", options.filter);
-    config.filter = options.filter;
+    try {
+        var options = JSON.parse(decodeURIComponent(e.response));
+        console.log("Options = " + JSON.stringify(options));
+        localStorage.setItem("useReflector", options.useReflector ? "yes" : "no");
+        config.useReflector = options.useReflector;
+        localStorage.setItem("reflectorAddress", options.reflectorAddress);
+        config.reflectorAddress = options.reflectorAddress;
+        localStorage.setItem("serverAddress", options.serverAddress);
+        config.serverAddress = options.serverAddress;
+        localStorage.setItem("serverPort", options.serverPort);
+        config.serverPort = options.serverPort;
+        localStorage.setItem("userName", options.userName);
+        config.userName = options.userName;
+        localStorage.setItem("userPass", options.userPass);
+        config.userPass = options.userPass;
+        localStorage.setItem("filter", options.filter);
+        config.filter = options.filter;
+    } catch (error) {
+        console.log("There was a problem loading the config settings");
+    }
     send({"loading": 1});
+    getDevicesAndActions();
 });
 
 var messageQueue = [], queueInProgress = false, timeoutBackOff = DEFAULT_TIMEOUT_BACKOFF;
@@ -323,14 +328,20 @@ function processDevicesJSON(data) {
 function processDevicesXML(data) {
     var devices = [];
     var deviceCount = 0;
-    var items = new xmldoc.XmlDocument(data).children;
 
-    for (var i = 0; i < items.length; i++) {
-        var itemName = checkFilter(items[i].val).substring(0, MAX_DEVICE_NAME_LENGTH);
-        if (itemName !== '') {
-            devices[deviceCount++] = build_device(itemName, items[i].attr.href);
+    try {
+        var items = new xmldoc.XmlDocument(data).children;
+
+        for (var i = 0; i < items.length; i++) {
+            var itemName = checkFilter(items[i].val).substring(0, MAX_DEVICE_NAME_LENGTH);
+            if (itemName !== '') {
+                devices[deviceCount++] = build_device(itemName, items[i].attr.href);
+            }
         }
+    } catch (e) {
+        console.log("There was an error processing the Devices XML: " + data);
     }
+
     return devices;
 }
 
@@ -443,13 +454,18 @@ function processActionsJSON(data) {
 function processActionsXML(data) {
     var actions = [];
     var actionCount = 0;
-    var items = new xmldoc.XmlDocument(data).children;
 
-    for (var i = 0; i < Math.min(items.length, MAX_NUMBER_OF_ACTIONS); i++) {
-        var itemName = checkFilter(items[i].val);
-        if (itemName !== '') {
-            actions[actionCount++] = build_action(itemName, items[i].attr.href);
+    try {
+        var items = new xmldoc.XmlDocument(data).children;
+
+        for (var i = 0; i < Math.min(items.length, MAX_NUMBER_OF_ACTIONS); i++) {
+            var itemName = checkFilter(items[i].val);
+            if (itemName !== '') {
+                actions[actionCount++] = build_action(itemName, items[i].attr.href);
+            }
         }
+    } catch (e) {
+        console.log("There was an error processing the Actions XML: " + data);
     }
     return actions;
 }
