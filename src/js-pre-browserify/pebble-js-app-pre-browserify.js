@@ -94,12 +94,15 @@ init_config();
 
 function buildURL(route) {
     var url = "";
-    if (config.useReflector == 'yes' && config.reflectorAddress !== null && config.reflectorAddress.length) {
-        url += "http://" + config.reflectorAddress;
+    if (config.useReflector && config.reflectorAddress !== null && config.reflectorAddress.length) {
+        url += config.reflectorAddress;
     } else {
-        url += "http://" + config.serverAddress;
+        url += config.serverAddress;
         if (config.serverPort !== null && config.serverPort.length)
             url += ":" + config.serverPort;
+    }
+    if (url.lastIndexOf("http", 0) !== 0) {
+	url = "http://" + url;
     }
     url += route;
     return url;
