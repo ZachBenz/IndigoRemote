@@ -1,18 +1,19 @@
 /*
- Indigo Remote
- 
+ Indigo Remote+
+
  Copyright (c) 2014, Zachary Benz
+ Copyright (c) 2015, Seth Goldman
  All rights reserved.
- 
+
  Redistribution and use in source and binary forms, with or without
  modification, are permitted provided that the following conditions are met:
- 
+
  1. Redistributions of source code must retain the above copyright notice, this
  list of conditions and the following disclaimer.
  2. Redistributions in binary form must reproduce the above copyright notice,
  this list of conditions and the following disclaimer in the documentation
  and/or other materials provided with the distribution.
- 
+
  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
  WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -33,104 +34,158 @@ if (typeof window.location.protocol === "undefined") {
     window.location.protocol = "http:";
 }
 
-var MAX_DEVICE_NAME_LENGTH = 95; // 1 less than max on Pebble side to allow for strncpy to insert terminating null in strncpy
-var MAX_ACTION_NAME_LENGTH = 95; // 1 less than max on Pebble side to allow for strncpy to insert terminating null in strncpy
+var MAX_DEVICE_NAME_LENGTH = 95; // 1 less than max on Pebble side to allow for strncpy to insert terminating null
+var MAX_ACTION_NAME_LENGTH = 95; // 1 less than max on Pebble side to allow for strncpy to insert terminating null
+var MAX_NUMBER_OF_DEVICES = 50;
+var MAX_NUMBER_OF_ACTIONS = 50;
 var DEFAULT_TIMEOUT_BACKOFF = 100;
 
-var deviceCount = localStorage.getItem("deviceCount");
-if (!deviceCount) {
-    deviceCount = 0;
-}
+var apiKind = 'xml';
 
-var devices = JSON.parse(localStorage.getItem("devices"));
-if (!devices) {
-    devices = [];
-}
-
-var actionCount = localStorage.getItem("actionCount");
-if (!actionCount) {
-    actionCount = 0;
-}
-
-var actions = JSON.parse(localStorage.getItem("actions"));
-if (!actions) {
-    actions = [];
-}
+var deviceCount = 0;
+var devices = [];
+var actionCount = 0;
+var actions = [];
 
 // Config approach using data URI adopted from: https://github.com/bertfreudenberg/PebbleONE/blob/c0b9ef6143a9f3655c5faa810baa88208eb6c1d8/src/js/pebble-js-app.js
 var config_html; // see bottom of file
 
+var settings = ["useReflector", "reflectorAddress", "serverAddress", "serverPort", "userName", "userPass", "filter"];
+var defaults = ["no", "", "", "8176", "", "", ""];
+
 var config = {
+    useReflector: false,
+    reflectorAddress: "",
     serverAddress: "",
-    serverPort:    "8000"
+    serverPort: "8176",
+    userName: "",
+    userPass: "",
+    filter: ""
 };
 
-config.serverAddress = localStorage.getItem("serverAddress");
-if (!config.serverAddress) {
-    config.serverAddress = "";
+function init_config() {
+    console.log("Reading configuration");
+    var localVal;
+
+    for (var i=0; i<settings.length; i++) {
+        var item = settings[i];
+        try {
+            localVal = localStorage.getItem(item);
+            if (item == 'useReflector')
+                config[item] = localVal == 'yes';
+            else
+                config[item] = localVal;
+        } catch (e) {
+            console.log("Problem retrieving setting: " + item);
+            config[item] = defaults[i];
+        }
+    }
 }
 
-config.serverPort = localStorage.getItem("serverPort");
-if (config.serverPort) {
-    config.serverPort = "8000";
+function reset_config() {
+    console.log("Resetting configuration");
+
+    for (var i=0; i<settings.length; i++) {
+        localStorage.setItem(settings[i], defaults[i]);
+    }
 }
 
-var prefixForGet = "http://" + config.serverAddress + ":" + config.serverPort;
-console.log("prefixForGet is: " + prefixForGet);
+init_config();
+
+function buildURL(route) {
+    var url = "";
+    if (config.useReflector && config.reflectorAddress !== null && config.reflectorAddress.length) {
+        url += config.reflectorAddress;
+    } else {
+        url += config.serverAddress;
+        if (config.serverPort !== null && config.serverPort.length)
+            url += ":" + config.serverPort;
+    }
+    if (url.lastIndexOf("http", 0) !== 0) {
+	url = "http://" + url;
+    }
+    url += route;
+    return url;
+}
+
+var authDigest = require('./auth-digest'),
+    xmldoc = require('xmldoc');
+
+function myHttpCall(route, callback) {
+    return authDigest.makeHttpCallPebble(buildURL(route), callback, config.userName, config.userPass);
+}
 
 // Set callback for the app ready event
-Pebble.addEventListener("ready", function(e) {
-    console.log("Ready: " + e.ready);
-    console.log(e.type);
+Pebble.addEventListener("ready", function (e) {
+    console.log("Ready to go: " + JSON.stringify(e));
+    console.log("Config is: " + JSON.stringify(config));
+    getDevicesAndActions();
 });
 
-Pebble.addEventListener("showConfiguration", function() {
+Pebble.addEventListener("showConfiguration", function () {
     console.log("showing configuration");
     var html = config_html.replace('__CONFIG__', JSON.stringify(config), 'g');
     Pebble.openURL('data:text/html,' + encodeURI(html + '<!--.html'));
 });
 
-Pebble.addEventListener("webviewclosed", function(e) {
-    send({"loading": 1});
+Pebble.addEventListener("webviewclosed", function (e) {
     console.log("configuration closed");
     // webview closed
-    var options = JSON.parse(decodeURIComponent(e.response));
-    console.log("Options = " + JSON.stringify(options));
-    localStorage.setItem("serverAddress", options.serverAddress);
-    config.serverAddress = options.serverAddress;
-    localStorage.setItem("serverPort", options.serverPort);
-    config.serverPort = options.serverPort;
-    prefixForGet = "http://" + config.serverAddress + ":" + config.serverPort;
-    getDevices();
-    getActions();
+    if (e.response === null || e.response.length === 0) {
+        console.log("Changes aborted");
+        return;
+    }
+    try {
+        var options = JSON.parse(decodeURIComponent(e.response));
+        console.log("Options = " + JSON.stringify(options));
+        localStorage.setItem("useReflector", options.useReflector ? "yes" : "no");
+        config.useReflector = options.useReflector;
+        localStorage.setItem("reflectorAddress", options.reflectorAddress);
+        config.reflectorAddress = options.reflectorAddress;
+        localStorage.setItem("serverAddress", options.serverAddress);
+        config.serverAddress = options.serverAddress;
+        localStorage.setItem("serverPort", options.serverPort);
+        config.serverPort = options.serverPort;
+        localStorage.setItem("userName", options.userName);
+        config.userName = options.userName;
+        localStorage.setItem("userPass", options.userPass);
+        config.userPass = options.userPass;
+        localStorage.setItem("filter", options.filter);
+        config.filter = options.filter;
+    } catch (error) {
+        console.log("There was a problem loading the config settings");
+    }
+    send({"loading": 1});
+    getDevicesAndActions();
 });
 
 var messageQueue = [], queueInProgress = false, timeoutBackOff = DEFAULT_TIMEOUT_BACKOFF;
+
 function sendNextInQueue() {
     if (messageQueue.length === 0) {
         queueInProgress = false;
         return;
-    } else {
-        queueInProgress = true;
     }
+    queueInProgress = true;
     var message = messageQueue[0];
     Pebble.sendAppMessage(message,
-                              function (e) {
-                                console.log("Succesfully sent message: " + JSON.stringify(messageQueue[0]));
-                                // remove the current message from the queue then handle the next one
-                                timeoutBackOff = DEFAULT_TIMEOUT_BACKOFF;
-                                messageQueue.shift();
-                                return sendNextInQueue();
-                              },
-                              function (e) {
-                                console.log("Failed to send message (will retry): " + JSON.stringify(messageQueue[0]));
-                                // repeat without removing the current message from the queue
-                                // using setTimeout with incremental backoff
-                                timeoutBackOff *= 2;
-                                setTimeout(sendNextInQueue, timeoutBackOff);
-                              }
-                          );
+        function (e) {
+            console.log("Succesfully sent message: " + JSON.stringify(messageQueue[0]));
+            // remove the current message from the queue then handle the next one
+            timeoutBackOff = DEFAULT_TIMEOUT_BACKOFF;
+            messageQueue.shift();
+            return sendNextInQueue();
+        },
+        function (e) {
+            console.log("Failed to send message (will retry): " + JSON.stringify(messageQueue[0]));
+            // repeat without removing the current message from the queue
+            // using setTimeout with incremental backoff
+            timeoutBackOff *= 2;
+            setTimeout(sendNextInQueue, timeoutBackOff);
+        }
+    );
 }
+
 function send(message) {
     messageQueue.push(message);
     if (!queueInProgress) {
@@ -139,202 +194,325 @@ function send(message) {
 }
 
 function sendDeviceCount(deviceCount) {
-    send({"device_count_complete": 1,
-        "device_count": deviceCount});
+    send({
+        "device_count_complete": 1,
+        "device_count": deviceCount
+    });
 }
 
 function sendDeviceInfo(deviceNumber, deviceInfo) {
-    send({"device": 1,
+    send({
+        "device": 1,
         "device_number": deviceNumber,
         "device_name": deviceInfo.device_name,
-        "device_on": deviceInfo.device_on});
+        "device_on": deviceInfo.device_on
+    });
 }
 
-function getDevices() {
-    var req = new XMLHttpRequest();
-    // Get the list of all devices known to the Indigo Server
-    req.open('GET', prefixForGet + "/devices.json", true);  // `true` makes the request asynchronous
-    // Indigo uses Digest authentication, so this won't work:
-    //    req.setRequestHeader("Authorization", "Basic " + btoa(username + ":" + password))
-    // Instead, see http://stackoverflow.com/questions/10937890/javascript-digest-manually-authentication?rq=1
-    // TODO: Support Digest Authentication
-    req.onload = function(e) {
-        if(req.status == 200) {
-            var response = JSON.parse(req.responseText);
-            if (response.length > 0) {
-                // Pare down to just devices that have typeSupportsOnOff: true
-                deviceCount = 0;
-                devices = [];
-                
-                var i, j;
-                for (i = 0, j = response.length; i < j; i += 1) {
-                    var deviceRequest = new XMLHttpRequest();
-                    deviceRequest.open('GET', prefixForGet + response[i].restURL, false);  // `false` makes the request synchronous
-                    deviceRequest.send(null);
-                    if( deviceRequest.status == 200) {
-                        // Track device information
-                        var deviceInfo = JSON.parse(deviceRequest.responseText);
-                        if (deviceInfo.typeSupportsOnOff) {
-                            devices[deviceCount] =
-                            {
-                                "device_name": deviceInfo.name.substring(0, MAX_DEVICE_NAME_LENGTH),
-                                "device_rest_url": response[i].restURL,
-                                "device_on": deviceInfo.isOn
-                            };
-                            deviceCount++;
-                        }
-                    }
-                    else {
-                        console.log("Request for device " + response[i].restURL + " returned error code " + deviceRequest.status.toString());
-                    }
-                }
-                localStorage.setItem("deviceCount", deviceCount);
-                localStorage.setItem("devices", JSON.stringify(devices));
-                
-                // We've got the total count of controllable devices, so send it out
-                sendDeviceCount(deviceCount);
-                
-                // Now send out the information for each device
-                for (i = 0, j = devices.length; i < j; i += 1) {
-                    sendDeviceInfo(i, devices[i]);
-                }
-            }
-            else {
-                sendDeviceCount(0);
-            }
-        } else {
-            console.log("Request returned error code " + req.status.toString());
+function buildDevice(name, url, isOn, isValid, kind) {
+    if (!isValid) name = "x" + name;
+    return {
+        device_name: name,
+        device_rest_url: url,
+        device_on: isOn,
+        verified: isValid,
+        kind: kind
+    };
+}
+
+function registerDeviceInfo() {
+    // We're done...
+    localStorage.setItem("deviceCount", deviceCount);
+    localStorage.setItem("devices", JSON.stringify(devices));
+
+    // We've got the total count of controllable devices, so send it out
+    sendDeviceCount(deviceCount);
+
+    for (var i = 0; i < deviceCount; i++) sendDeviceInfo(i, devices[i]);
+}
+
+function getDevices(kind) {
+    var uri = '/devices.' + kind;
+    var handler = function (error, data) {
+        if (error !== null) {
+            console.log("Error getting devices: " + JSON.stringify(error) + data);
             sendDeviceCount(0);
+        } else {
+            processDevicesResult(data, kind);
         }
     };
-    req.send(null);
+    myHttpCall(uri, handler);
+}
+
+function processDevicesResult(data, kind) {
+    var devices = [];
+    switch (kind) {
+        case 'json':
+            devices = processDevicesJSON(data);
+            break;
+        case 'xml':
+            devices = processDevicesXML(data);
+            break;
+    }
+    processDevices(devices, kind);
+}
+
+function processDevice(data, kind) {
+    if (kind == 'json') return parseJSONResponse(data);
+    var item = new xmldoc.XmlDocument(data);
+    return {
+        name: item.valueWithPath('name'),
+        displayInUI: item.valueWithPath('displayInUI') == 'True',
+        typeSupportsOnOff: item.valueWithPath('typeSupportsOnOff') == 'True',
+        isOn: item.valueWithPath('isOn') == 'True'
+    };
+}
+
+function processDevices(items, kind) {
+    devices = [];
+    deviceCount = 0;
+    var numDevices = items.length;
+    var count = 0;
+
+    var handler = function (error, data) {
+        var item = items[count++];
+        if (error !== null) {
+            console.log("Failed to get info for: " + item.name);
+        } else {
+            var info = processDevice(data, kind);
+            if (info.typeSupportsOnOff && info.displayInUI)
+            // We only handle on-off devices
+                devices[deviceCount++] = buildDevice(item.name, item.restURL, info.isOn, true, kind);
+        }
+        if (count >= Math.min(numDevices, MAX_NUMBER_OF_DEVICES)) {
+            registerDeviceInfo();
+        } else {
+            item = items[count];
+            myHttpCall(item.restURL, handler);
+        }
+    };
+    if (numDevices === 0)
+        registerDeviceInfo();
+    else
+        myHttpCall(items[0].restURL, handler);
+}
+
+function strip_unicode(str) {
+    return str.replace(/[\uE000-\uF8FF]/g, '');
+}
+
+function checkFilter(str) {
+    str = strip_unicode(str);
+    if (config.filter.length === 0) return str;
+    return str.indexOf(config.filter) === 0 ? str.substring(config.filter.length) : '';
+}
+
+function build_device(name, url) {
+    return {
+        name: name,
+        restURL: url
+    };
+}
+
+function processDevicesJSON(data) {
+    var response = parseJSONResponse('processDevicesJSON', data);
+    var devices = [];
+    var deviceCount = 0;
+
+    for (var i = 0; i < response.length; i++) {
+        var itemName = checkFilter(response[i].name);
+        if (itemName !== '') {
+            devices[deviceCount++] = build_device(itemName, response[i].restURL);
+        }
+    }
+    return devices;
+}
+
+function processDevicesXML(data) {
+    var devices = [];
+    var deviceCount = 0;
+
+    try {
+        var items = new xmldoc.XmlDocument(data).children;
+
+        for (var i = 0; i < items.length; i++) {
+            var itemName = checkFilter(items[i].val).substring(0, MAX_DEVICE_NAME_LENGTH);
+            if (itemName !== '') {
+                devices[deviceCount++] = build_device(itemName, items[i].attr.href);
+            }
+        }
+    } catch (e) {
+        console.log("There was an error processing the Devices XML: " + data);
+    }
+
+    return devices;
 }
 
 function toggleDeviceOnOff(deviceNumber) {
-    var req = new XMLHttpRequest();
-    // TODO: Support Digest Authentication
-    req.open('GET', prefixForGet + devices[deviceNumber].device_rest_url + "?toggle=1&_method=put", true);  // `true` makes the request asynchronous
-    req.onload = function(e) {
-        if (req.readyState == 4) {
-            // 200 - HTTP OK
-            if(req.status == 200) {
-                var deviceInfo = JSON.parse(req.responseText);
-                devices[deviceNumber].device_on = deviceInfo.isOn;
-                sendDeviceInfo(deviceNumber, devices[deviceNumber]);
-                localStorage.setItem("devices", JSON.stringify(devices));
-            } else {
-                // TODO: inform pebble that toggle failed
-                console.log("Request returned error code " + req.status.toString());
-            }
+    var path = devices[deviceNumber].device_rest_url + "?toggle=1&_method=put";
+
+    var handler = function (error, data) {
+        if (error !== null) {
+            console.log("toggleDeviceOnOff error: " + JSON.stringify(error) + JSON.stringify(data));
+        } else {
+            var device = devices[deviceNumber];
+            var deviceInfo = processDevice(data, device.kind);
+            device.device_on = deviceInfo.isOn;
+            sendDeviceInfo(deviceNumber, device);
+            localStorage.setItem("devices", JSON.stringify(devices));
         }
     };
-    req.send(null);
+    myHttpCall(path, handler);
 }
 
 function sendActionCount(actionCount) {
-    send({"action_count_complete": 1,
-         "action_count": actionCount});
+    send({
+        "action_count_complete": 1,
+        "action_count": actionCount
+    });
 }
 
 function sendActionInfo(actionNumber, actionInfo) {
-    send({"action": 1,
+    send({
+        "action": 1,
         "action_number": actionNumber,
-        "action_name": actionInfo.action_name});
+        "action_name": actionInfo.action_name
+    });
 }
 
-function getActions() {
-    var req = new XMLHttpRequest();
-    // Get the list of all actions known to the Indigo Server
-    req.open('GET', prefixForGet + "/actions.json", true);  // `true` makes the request asynchronous
-    // Indigo uses Digest authentication, so this won't work:
-    //    req.setRequestHeader("Authorization", "Basic " + btoa(username + ":" + password))
-    // Instead, see http://stackoverflow.com/questions/10937890/javascript-digest-manually-authentication?rq=1
-    // TODO: Support Digest Authentication
-    req.onload = function(e) {
-        if(req.status == 200) {
-            var response = JSON.parse(req.responseText);
-            if (response.length > 0) {
-                actionCount = 0;
-                actions = [];
-                
-                var i,j;
-                for (i = 0, j = response.length; i < j; i += 1) {
-                    // Track action information
-                    actions[actionCount] =
-                    {
-                        "action_name": response[i].name.substring(0, MAX_ACTION_NAME_LENGTH),
-                        "action_rest_url": response[i].restURL
-                    };
-                    actionCount++;
-                }
-                localStorage.setItem("actionCount", actionCount);
-                localStorage.setItem("actions", JSON.stringify(actions));
-                
-                // We've got the total count of actions, so send it out
-                sendActionCount(actionCount);
-                
-                // Now send out the information for each action
-                for (i = 0, j = actions.length; i < j; i += 1) {
-                    sendActionInfo(i, actions[i]);
-                }
-            }
-            else {
-                sendActionCount(0);
-            }
-        } else {
-            console.log("Request returned error code " + req.status.toString());
-            sendActionCount(0);
+function parseJSONResponse(who, data) {
+    try {
+        console.log(data);
+        return JSON.parse(data);
+    } catch (e) {
+        console.log(who + ": encountered an error parsing JSON data");
+        if (who != 'parseJSONResponse') {
+            data = data.replace(/,/, '');
+            return parseJSONResponse('parseJSONResponse', data);
         }
+        return [];
+    }
+}
+
+function getActions(kind) {
+    var uri = '/actions.' + kind;
+    myHttpCall(uri, function (error, data) {
+        if (error !== null) {
+            console.log("getActions error: " + JSON.stringify(error));
+            sendActionCount(0);
+        } else {
+            processActionsResult(data, kind);
+        }
+    });
+}
+
+function processActionsResult(data, kind) {
+    actions = [];
+    switch (kind) {
+        case 'json':
+            actions = processActionsJSON(data);
+            break;
+        case 'xml':
+            actions = processActionsXML(data);
+            break;
+    }
+    processActions(actions);
+}
+
+function processActions(actions) {
+    actionCount = actions.length;
+
+    localStorage.setItem('actionCount', actionCount);
+    localStorage.setItem('actions', JSON.stringify(actions));
+
+    // We've got the total count of actions, so send it out
+    sendActionCount(actionCount);
+
+    // Now send out the information for each action
+    for (i = 0; i < actions.length; i++)
+        sendActionInfo(i, actions[i]);
+}
+
+function build_action(name, url) {
+    return {
+        action_name: name.substring(0, MAX_ACTION_NAME_LENGTH),
+        action_rest_url: url.replace('.xml', '.json')
     };
-    req.send(null);
+}
+
+function processActionsJSON(data) {
+    var response = parseJSONResponse('processActionsJSON', data);
+    var actions = [];
+    var actionCount = 0;
+
+    for (var i = 0; i < Math.min(response.length, MAX_NUMBER_OF_ACTIONS); i++) {
+        var itemName = checkFilter(response[i].name);
+        if (itemName !== '') {
+            actions[actionCount++] = build_action(itemName, response[i].restURL);
+        }
+    }
+    return actions;
+}
+
+function processActionsXML(data) {
+    var actions = [];
+    var actionCount = 0;
+
+    try {
+        var items = new xmldoc.XmlDocument(data).children;
+
+        for (var i = 0; i < Math.min(items.length, MAX_NUMBER_OF_ACTIONS); i++) {
+            var itemName = checkFilter(items[i].val);
+            if (itemName !== '') {
+                actions[actionCount++] = build_action(itemName, items[i].attr.href);
+            }
+        }
+    } catch (e) {
+        console.log("There was an error processing the Actions XML: " + data);
+    }
+    return actions;
 }
 
 function executeAction(actionNumber) {
-    var req = new XMLHttpRequest();
-    // TODO: Support Digest Authentication
-    req.open('GET', prefixForGet + actions[actionNumber].action_rest_url + "?_method=execute", true);  // `true` makes the request asynchronous
-    req.onload = function(e) {
-        if (req.readyState == 4) {
-            // 200 - HTTP OK
-            if (req.status == 200) {
-                sendActionInfo(actionNumber, actions[actionNumber]);
-            } else {
-                // TODO: inform pebble that action failed
-                console.log("Request returned error code " + req.status.toString());
-            }
+    var path = actions[actionNumber].action_rest_url + "?_method=execute";
+
+    var handler = function (error, data) {
+        if (error !== null) {
+            console.log("executeAction error: " + JSON.stringify(error));
+        } else {
+            sendActionInfo(actionNumber, actions[actionNumber]);
         }
     };
-    req.send(null);
+    myHttpCall(path, handler);
 }
 
 function dimDevice(deviceNumber, dimLevel) {
-    var req = new XMLHttpRequest();
-    // TODO: Support Digest Authentication
-    req.open('GET', prefixForGet + devices[deviceNumber].device_rest_url + "?brightness=" + dimLevel + "&_method=put", true);  // `true` makes the request asynchronous
-    req.onload = function(e) {
-        if (req.readyState == 4) {
-            // 200 - HTTP OK
-            if(req.status == 200) {
-                var deviceInfo = JSON.parse(req.responseText);
-                devices[deviceNumber].device_on = deviceInfo.isOn;
-                sendDeviceInfo(deviceNumber, devices[deviceNumber]);
-                localStorage.setItem("devices", JSON.stringify(devices));
-            } else {
-                // TODO: inform pebble that dim failed
-                console.log("Request returned error code " + req.status.toString());
-            }
+    var path = devices[deviceNumber].device_rest_url + "?brightness=" + dimLevel + "&_method=put";
+    var handler = function (error, data) {
+        if (error !== null) {
+            console.log("dimDevice error: " + JSON.stringify(error));
+        } else {
+            var deviceInfo = parseJSONResponse(data);
+            devices[deviceNumber].device_on = deviceInfo.isOn;
+            sendDeviceInfo(deviceNumber, devices[deviceNumber]);
+            localStorage.setItem("devices", JSON.stringify(devices));
         }
     };
-    req.send(null);
+    myHttpCall(path, handler);
+}
+
+function getDevicesAndActions() {
+    console.log('Loading Devices and Actions');
+    getDevices(apiKind);
+    getActions(apiKind);
 }
 
 // Set callback for appmessage events
-Pebble.addEventListener("appmessage", function(e) {
-    console.log("appmessage received!!!!");
+Pebble.addEventListener("appmessage", function (e) {
+    console.log("appmessage received!!!!" + JSON.stringify(e));
     if (e.payload.get_devices_and_actions) {
         console.log("get_devices_and_actions flag in payload");
-        getDevices();
-        getActions();
+        getDevicesAndActions();
     }
     if (e.payload.device_toggle_on_off) {
         console.log("device_toggle_on_off flag in payload");
@@ -367,6 +545,7 @@ margin: 10px 0;\
 border: 1px solid rgb(50,50,50);\
 border-radius: 10px;\
 background: linear-gradient(rgb(230,230,230), rgb(150,150,150));\
+font-size: 20px;\
 }\
 div.center {text-align: center}\
 h1 {color: rgb(100,100,100); margin-top: 0, padding-top: 0;}\
@@ -376,35 +555,63 @@ float: right;\
 -webkit-transform-origin: 100% 100%;\
 }\
 p,a {color: rgb(200,200,200)}\
+.textBox { font-size: 20px; }\
+.large-btn { font-size: 20px; }\
 </style>\
 </head>\
 <body>\
 <div class="center">\
 <h1>Indigo Remote</h1>\
 </div>\
+<div class="center" style="border-style: none;">\
 <form onsubmit="return onSubmit(this)">\
+<input type="checkbox" name="useReflector" id="useReflector"></input>\
+<label for="reflector-address">Prism Reflector:</label>\
+<br>\
+<input type="text" class="textBox" size="20" name="reflector-address" id="reflector-address" optional></input>\
+<br>\
 <label for="server-address">Server IP Address:</label>\
 <br>\
-<input type="text" size="15" name="server-address" id="server-address" required></input>\
+<input type="text" class="textBox" size="20" name="server-address" id="server-address" required></input>\
 <br>\
 <label for="server-port">Server Port Number:</label>\
 <br>\
-<input type="text" size="15" name="server-port" id="server-port" required></input>\
+<input type="text" class="textBox" size="20" name="server-port" id="server-port" required></input>\
+<br>\
+<label for="user-name">User Name:</label>\
+<br>\
+<input type="text" class="textBox" size="20" name="user-name" id="user-name" optional></input>\
+<br>\
+<label for="user-pass">User Password:</label>\
+<br>\
+<input type="password" class="textBox" size="20" name="user-pass" id="user-pass" optional></input>\
+<br>\
+<label for="filter">Item Filter:</label>\
+<br>\
+<input type="text" class="textBox" size="20" name="filter" id="filter" optional></input>\
 <br><br>\
-<input type="submit" value="Save">\
+<input class="large-btn" type="submit" value="Save">\
 <br>\
 </form>\
-<p>\
-Authenticated connections and Prism Reflector are not yet supported.<br>\
-</p>\
+</div>\
 <script>\
 var config = JSON.parse(\'__CONFIG__\');\
+document.getElementById("reflector-address").value = config.reflectorAddress;\
 document.getElementById("server-address").value = config.serverAddress;\
 document.getElementById("server-port").value = config.serverPort;\
+document.getElementById("user-name").value = config.userName;\
+document.getElementById("user-pass").value = config.userPass;\
+document.getElementById("useReflector").checked = config.useReflector;\
+document.getElementById("filter").value = config.filter;\
 function onSubmit(e) {\
 var result = {\
+useReflector: document.getElementById("useReflector").checked,\
+reflectorAddress: document.getElementById("reflector-address").value,\
 serverAddress: document.getElementById("server-address").value,\
 serverPort: document.getElementById("server-port").value,\
+userName: document.getElementById("user-name").value,\
+userPass: document.getElementById("user-pass").value,\
+filter: document.getElementById("filter").value,\
 };\
 window.location.href = "pebblejs://close#" + JSON.stringify(result);\
 return false;\

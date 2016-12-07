@@ -1,61 +1,84 @@
 <!DOCTYPE html>
 <html>
-    <head>
-        <meta name="viewport" content="width=device-width">
-            <style>
-                body {
-                    background-color: rgb(100,100,100);
-                    font-family: sans-serif;
-                }
-            div,form {
-                text-shadow: 0px 1px 1px white;
-                padding: 10px;
-                margin: 10px 0;
-                border: 1px solid rgb(50,50,50);
-                border-radius: 10px;
-                background: linear-gradient(rgb(230,230,230), rgb(150,150,150));
-            }
-            div.center {text-align: center}
-            h1 {color: rgb(100,100,100); margin-top: 0, padding-top: 0;}
-            }
-            input {
-                float: right;
-                -webkit-transform-origin: 100% 100%;
-            }
-            p,a {color: rgb(200,200,200)}
-                </style>
-    </head>
-    <body>
-        <div class="center">
-            <h1>Indigo Remote</h1>
-        </div>
-        <form onsubmit="return onSubmit(this)">
-            <label for="server-address">Server IP Address:</label>
-            <br>
-            <input type="text" size="15" name="server-address" id="server-address" required></input>
-            <br>
-            <label for="server-port">Server Port Number:</label>
-            <br>
-            <input type="text" size="15" name="server-port" id="server-port" required></input>
-            <br><br>
-            <input type="submit" value="Save">
-                <br>
-        </form>
-        <p>
-        Authenticated connections and Prism Reflector are not yet supported.<br>
-        </p>
-        <script>
-            var config = JSON.parse('__CONFIG__');
-                                    document.getElementById("server-address").value = config.serverAddress;
-                                    document.getElementById("server-port").value = config.serverPort;
-                                    function onSubmit(e) {
-                                    var result = {
-                                    serverAddress: document.getElementById("server-address").value,
-                                    serverPort: document.getElementById("server-port").value,
-                                    };
-                                    window.location.href = "pebblejs://close#" + JSON.stringify(result);
-                                    return false;
-                                    }
-            </script>
-    </body>
+  <head>
+    <meta name="viewport" content="width=device-width">
+    <style>
+      body {
+      background-color: rgb(100,100,100);
+      font-family: sans-serif;
+      }
+      div,form {
+      text-shadow: 0px 1px 1px white;
+      padding: 10px;
+      margin: 10px 0;
+      border: 1px solid rgb(50,50,50);
+      border-radius: 10px;
+      background: linear-gradient(rgb(230,230,230), rgb(150,150,150));
+      font-size: 20px;
+      }
+      div.center {text-align: center}
+      h1 {color: rgb(100,100,100); margin-top: 0, padding-top: 0;}
+      }
+      input {
+      float: right;
+      -webkit-transform-origin: 100% 100%;
+      }
+      p,a {color: rgb(200,200,200)}
+      .textBox { font-size: 20px; }
+      .large-btn { font-size: 20px; }
+    </style>
+  </head>
+  <body>
+    <div class="center">
+      <h1>Indigo Remote</h1>
+    </div>
+    <div class="center">
+      <form onsubmit="return onSubmit(this)">
+	<input type="checkbox" class="textBox" name="useReflector"></input>
+	<label for="reflector-address">Prism Reflector:</label>
+	<br>
+	<input type="text" class="textBox" size="20" name="reflector-address" id="reflector-address" optional></input>
+	<br>
+	<label for="server-address">Server IP Address:</label>
+	<br>
+	<input type="text" class="textBox" size="20" name="server-address" id="server-address" required></input>
+	<br>
+	<label for="server-port">Server Port Number:</label>
+	<br>
+	<input type="text" class="textBox" size="20" name="server-port" id="server-port" required></input>
+	<br>
+	<label for="user-name">User Name:</label>
+	<br>
+	<input type="text" class="textBox" size="20" name="user-name" id="user-name" optional></input>
+	<br>
+	<label for="user-pass">User Pass:</label>
+	<br>
+	<input type="password" class="textBox" size="20" name="user-pass" id="user-pass" optional></input>
+	<br><br>
+	<input type="submit" class="large-btn" value="Save">
+	<br>
+      </form>
+    </div>
+    <script>
+      var config = JSON.parse('__CONFIG__');
+      document.getElementById("reflector-address").value = config.reflectorAddress;
+      document.getElementById("server-address").value = config.serverAddress;
+      document.getElementById("server-port").value = config.serverPort;
+      document.getElementById("server-port").value = config.userName;
+      document.getElementById("server-port").value = config.userPass
+      document.getElementById("useReflector").checked = config.useReflector;
+      function onSubmit(e) {
+      var result = {
+      useReflector: document.getElementById("useReflector").checked,
+      reflectorAddress: document.getElementById("reflector-address").value,
+      serverAddress: document.getElementById("server-address").value,
+      serverPort: document.getElementById("server-port").value,
+      userName: document.getElementById("user-name").value,
+      userPass: document.getElementById("user-pass").value,
+      };
+      window.location.href = "pebblejs://close#" + JSON.stringify(result);
+      return false;
+      }
+    </script>
+  </body>
 </html>
